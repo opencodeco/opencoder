@@ -1,0 +1,13 @@
+.{
+    .name = .opencoder,
+    .version = "0.1.0",
+    .fingerprint = 0x767bc0e5b4c45b53,
+    .minimum_zig_version = "0.14.0",
+    .paths = .{
+        "src",
+        "build.zig",
+        "build.zig.zon",
+        "README.md",
+        "LICENSE",
+    },
+}
