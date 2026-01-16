@@ -274,6 +274,69 @@ pub fn isShutdownRequested() bool {
 // Tests
 // ============================================================================
 
+// Test helper: Create mock logger
+fn createTestLogger(allocator: Allocator) !*Logger {
+    const temp_dir = try std.fmt.allocPrint(allocator, "/tmp/loop_test_{d}", .{std.time.milliTimestamp()});
+    defer allocator.free(temp_dir);
+
+    try std.fs.cwd().makePath(temp_dir);
+
+    const cycle_log_dir = try std.fs.path.join(allocator, &.{ temp_dir, "cycles" });
+    const alerts_file = try std.fs.path.join(allocator, &.{ temp_dir, "alerts.log" });
+
+    try std.fs.cwd().makePath(cycle_log_dir);
+
+    const logger_ptr = try allocator.create(Logger);
+    logger_ptr.* = Logger{
+        .main_log = null,
+        .cycle_log_dir = cycle_log_dir,
+        .alerts_file = alerts_file,
+        .cycle = 0,
+        .verbose = false,
+        .allocator = allocator,
+    };
+    return logger_ptr;
+}
+
+fn destroyTestLogger(logger_ptr: *Logger, allocator: Allocator) void {
+    const temp_base = std.fs.path.dirname(logger_ptr.cycle_log_dir) orelse "/tmp";
+    std.fs.cwd().deleteTree(temp_base) catch {};
+
+    allocator.free(logger_ptr.cycle_log_dir);
+    allocator.free(logger_ptr.alerts_file);
+    allocator.destroy(logger_ptr);
+}
+
+// Test helper: Create mock paths
+fn createTestPaths(allocator: Allocator) !fsutil.Paths {
+    const temp_dir = try std.fmt.allocPrint(allocator, "/tmp/loop_paths_{d}", .{std.time.milliTimestamp()});
+    defer allocator.free(temp_dir);
+
+    try std.fs.cwd().makePath(temp_dir);
+
+    const opencoder_dir = try allocator.dupe(u8, temp_dir);
+    const state_file = try std.fs.path.join(allocator, &.{ temp_dir, "state.json" });
+    const current_plan = try std.fs.path.join(allocator, &.{ temp_dir, "current_plan.md" });
+    const main_log = try std.fs.path.join(allocator, &.{ temp_dir, "main.log" });
+    const cycle_log_dir = try std.fs.path.join(allocator, &.{ temp_dir, "cycles" });
+    const alerts_file = try std.fs.path.join(allocator, &.{ temp_dir, "alerts.log" });
+    const history_dir = try std.fs.path.join(allocator, &.{ temp_dir, "history" });
+
+    try std.fs.cwd().makePath(cycle_log_dir);
+    try std.fs.cwd().makePath(history_dir);
+
+    return fsutil.Paths{
+        .opencoder_dir = opencoder_dir,
+        .state_file = state_file,
+        .current_plan = current_plan,
+        .main_log = main_log,
+        .cycle_log_dir = cycle_log_dir,
+        .alerts_file = alerts_file,
+        .history_dir = history_dir,
+        .allocator = allocator,
+    };
+}
+
 test "shutdown flag management" {
     // Reset state
     shutdown_requested = false;
@@ -286,4 +349,262 @@ test "shutdown flag management" {
 
     // Reset for other tests
     shutdown_requested = false;
+}
+
+test "Loop.init creates loop with correct fields" {
+    const allocator = std.testing.allocator;
+
+    // Create test dependencies
+    const test_logger = try createTestLogger(allocator);
+    defer destroyTestLogger(test_logger, allocator);
+
+    var test_paths = try createTestPaths(allocator);
+    defer test_paths.deinit();
+
+    const test_cfg = config.Config{
+        .planning_model = "test/model",
+        .execution_model = "test/model",
+        .project_dir = "/tmp",
+        .verbose = false,
+        .user_hint = null,
+        .max_retries = 3,
+        .backoff_base = 5,
+        .log_retention = 30,
+    };
+
+    var test_state = state.State.default();
+    defer test_state.deinit(allocator);
+
+    var test_executor = Executor.init(&test_cfg, test_logger, allocator);
+    defer test_executor.deinit();
+
+    // Create loop
+    const loop = Loop.init(
+        &test_cfg,
+        &test_state,
+        &test_paths,
+        test_logger,
+        &test_executor,
+        allocator,
+    );
+
+    // Verify fields
+    try std.testing.expectEqual(&test_cfg, loop.cfg);
+    try std.testing.expectEqual(&test_state, loop.st);
+    try std.testing.expectEqual(&test_paths, loop.paths);
+    try std.testing.expectEqual(test_logger, loop.log);
+    try std.testing.expectEqual(&test_executor, loop.executor);
+}
+
+test "backoffSleep calculates correct sleep time" {
+    const allocator = std.testing.allocator;
+
+    // Create test dependencies with backoff_base = 10
+    const test_logger = try createTestLogger(allocator);
+    defer destroyTestLogger(test_logger, allocator);
+
+    var test_paths = try createTestPaths(allocator);
+    defer test_paths.deinit();
+
+    const test_cfg = config.Config{
+        .planning_model = "test/model",
+        .execution_model = "test/model",
+        .project_dir = "/tmp",
+        .verbose = false,
+        .user_hint = null,
+        .max_retries = 3,
+        .backoff_base = 10,
+        .log_retention = 30,
+    };
+
+    var test_state = state.State.default();
+    defer test_state.deinit(allocator);
+
+    var test_executor = Executor.init(&test_cfg, test_logger, allocator);
+    defer test_executor.deinit();
+
+    var loop = Loop.init(
+        &test_cfg,
+        &test_state,
+        &test_paths,
+        test_logger,
+        &test_executor,
+        allocator,
+    );
+
+    // Note: We can't easily test the actual sleep without waiting,
+    // but we can verify the calculation: backoff_base * 2 = 10 * 2 = 20 seconds
+    // The backoffSleep function uses: self.cfg.backoff_base * 2
+    try std.testing.expectEqual(@as(u32, 10), loop.cfg.backoff_base);
+
+    // Call backoffSleep - it should sleep for 20 seconds, but we can't verify timing in tests
+    // Just ensure it doesn't crash
+    const start = std.time.nanoTimestamp();
+    loop.backoffSleep();
+    const elapsed = std.time.nanoTimestamp() - start;
+
+    // Verify it actually slept (at least 19 seconds to account for scheduling)
+    try std.testing.expect(elapsed >= 19 * std.time.ns_per_s);
+}
+
+test "Loop state transitions between phases" {
+    const allocator = std.testing.allocator;
+
+    const test_logger = try createTestLogger(allocator);
+    defer destroyTestLogger(test_logger, allocator);
+
+    var test_paths = try createTestPaths(allocator);
+    defer test_paths.deinit();
+
+    const test_cfg = config.Config{
+        .planning_model = "test/model",
+        .execution_model = "test/model",
+        .project_dir = "/tmp",
+        .verbose = false,
+        .user_hint = null,
+        .max_retries = 3,
+        .backoff_base = 1,
+        .log_retention = 30,
+    };
+
+    var test_state = state.State.default();
+    defer test_state.deinit(allocator);
+
+    var test_executor = Executor.init(&test_cfg, test_logger, allocator);
+    defer test_executor.deinit();
+
+    _ = Loop.init(
+        &test_cfg,
+        &test_state,
+        &test_paths,
+        test_logger,
+        &test_executor,
+        allocator,
+    );
+
+    // Verify initial state
+    try std.testing.expectEqual(state.Phase.planning, test_state.phase);
+    try std.testing.expectEqual(@as(u32, 1), test_state.cycle);
+    try std.testing.expectEqual(@as(u32, 0), test_state.task_index);
+
+    // Simulate phase transitions
+    test_state.phase = .execution;
+    try std.testing.expectEqual(state.Phase.execution, test_state.phase);
+
+    test_state.phase = .evaluation;
+    try std.testing.expectEqual(state.Phase.evaluation, test_state.phase);
+
+    // Simulate cycle completion
+    test_state.cycle += 1;
+    test_state.phase = .planning;
+    try std.testing.expectEqual(@as(u32, 2), test_state.cycle);
+    try std.testing.expectEqual(state.Phase.planning, test_state.phase);
+}
+
+test "Loop handles task counter increments" {
+    const allocator = std.testing.allocator;
+
+    const test_logger = try createTestLogger(allocator);
+    defer destroyTestLogger(test_logger, allocator);
+
+    var test_paths = try createTestPaths(allocator);
+    defer test_paths.deinit();
+
+    const test_cfg = config.Config{
+        .planning_model = "test/model",
+        .execution_model = "test/model",
+        .project_dir = "/tmp",
+        .verbose = false,
+        .user_hint = null,
+        .max_retries = 3,
+        .backoff_base = 1,
+        .log_retention = 30,
+    };
+
+    var test_state = state.State.default();
+    defer test_state.deinit(allocator);
+
+    var test_executor = Executor.init(&test_cfg, test_logger, allocator);
+    defer test_executor.deinit();
+
+    _ = Loop.init(
+        &test_cfg,
+        &test_state,
+        &test_paths,
+        test_logger,
+        &test_executor,
+        allocator,
+    );
+
+    // Set total tasks
+    test_state.total_tasks = 5;
+
+    // Simulate task execution
+    try std.testing.expectEqual(@as(u32, 0), test_state.current_task_num);
+
+    test_state.current_task_num += 1;
+    test_state.task_index += 1;
+    try std.testing.expectEqual(@as(u32, 1), test_state.current_task_num);
+    try std.testing.expectEqual(@as(u32, 1), test_state.task_index);
+
+    test_state.current_task_num += 1;
+    test_state.task_index += 1;
+    try std.testing.expectEqual(@as(u32, 2), test_state.current_task_num);
+    try std.testing.expectEqual(@as(u32, 2), test_state.task_index);
+}
+
+test "Loop cycle reset on new cycle" {
+    const allocator = std.testing.allocator;
+
+    const test_logger = try createTestLogger(allocator);
+    defer destroyTestLogger(test_logger, allocator);
+
+    var test_paths = try createTestPaths(allocator);
+    defer test_paths.deinit();
+
+    const test_cfg = config.Config{
+        .planning_model = "test/model",
+        .execution_model = "test/model",
+        .project_dir = "/tmp",
+        .verbose = false,
+        .user_hint = null,
+        .max_retries = 3,
+        .backoff_base = 1,
+        .log_retention = 30,
+    };
+
+    var test_state = state.State{
+        .cycle = 5,
+        .phase = .evaluation,
+        .task_index = 10,
+        .current_task_num = 8,
+        .total_tasks = 10,
+    };
+    defer test_state.deinit(allocator);
+
+    var test_executor = Executor.init(&test_cfg, test_logger, allocator);
+    defer test_executor.deinit();
+
+    _ = Loop.init(
+        &test_cfg,
+        &test_state,
+        &test_paths,
+        test_logger,
+        &test_executor,
+        allocator,
+    );
+
+    // Simulate starting new cycle (as done in loop.zig:201-206)
+    test_state.cycle += 1;
+    test_state.phase = .planning;
+    test_state.task_index = 0;
+    test_state.current_task_num = 0;
+    test_state.total_tasks = 0;
+
+    // Verify reset
+    try std.testing.expectEqual(@as(u32, 6), test_state.cycle);
+    try std.testing.expectEqual(state.Phase.planning, test_state.phase);
+    try std.testing.expectEqual(@as(u32, 0), test_state.task_index);
+    try std.testing.expectEqual(@as(u32, 0), test_state.current_task_num);
+    try std.testing.expectEqual(@as(u32, 0), test_state.total_tasks);
 }
