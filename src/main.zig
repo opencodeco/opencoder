@@ -112,6 +112,9 @@ fn runOpencoder(cfg: config.Config, allocator: std.mem.Allocator) !void {
         log.logErrorFmt("Failed to save final state: {}", .{err});
     };
 
+    // Clean up state
+    st.deinit(allocator);
+
     log.say("");
     log.say("Opencoder stopped");
 }

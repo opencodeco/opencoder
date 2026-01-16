@@ -58,6 +58,16 @@ pub const State = struct {
         return State{};
     }
 
+    /// Free allocated memory for state fields
+    pub fn deinit(self: *State, allocator: Allocator) void {
+        if (self.session_id) |sid| {
+            allocator.free(sid);
+        }
+        if (self.last_update.len > 0) {
+            allocator.free(self.last_update);
+        }
+    }
+
     /// Save state to JSON file
     pub fn save(self: *const State, path: []const u8, allocator: Allocator) !void {
         // Generate current timestamp
