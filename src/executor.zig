@@ -33,6 +33,13 @@ pub const Executor = struct {
         };
     }
 
+    /// Cleanup executor resources
+    pub fn deinit(self: *Executor) void {
+        if (self.session_id) |sid| {
+            self.allocator.free(sid);
+        }
+    }
+
     /// Run planning phase
     pub fn runPlanning(self: *Executor, cycle: u32) !ExecutionResult {
         self.log.statusFmt("[Cycle {d}] Planning...", .{cycle});
@@ -47,7 +54,7 @@ pub const Executor = struct {
 
         if (result == .success) {
             // Reset session for new cycle
-            self.session_id = null;
+            self.resetSession();
         }
 
         return result;
@@ -67,10 +74,8 @@ pub const Executor = struct {
         const result = try self.runWithRetry(self.cfg.execution_model, title, prompt, continue_session);
 
         if (result == .success and self.session_id == null) {
-            // Set session ID after first successful task
-            var sid_buf: [32]u8 = undefined;
-            const sid = std.fmt.bufPrint(&sid_buf, "cycle_{d}", .{cycle}) catch "session";
-            self.session_id = sid;
+            // Set session ID after first successful task (allocate owned memory)
+            self.session_id = try std.fmt.allocPrint(self.allocator, "cycle_{d}", .{cycle});
         }
 
         return result;
@@ -122,6 +127,9 @@ pub const Executor = struct {
 
     /// Reset session for new cycle
     pub fn resetSession(self: *Executor) void {
+        if (self.session_id) |sid| {
+            self.allocator.free(sid);
+        }
         self.session_id = null;
     }
 
@@ -166,7 +174,10 @@ pub const Executor = struct {
         try args.append(self.allocator, title);
 
         if (continue_session) {
-            try args.append(self.allocator, "--continue");
+            if (self.session_id) |sid| {
+                try args.append(self.allocator, "--session");
+                try args.append(self.allocator, sid);
+            }
         }
 
         try args.append(self.allocator, prompt);
@@ -197,8 +208,22 @@ pub const Executor = struct {
 
         const term = try child.wait();
 
-        if (term.Exited == 0) {
-            return stdout_list.toOwnedSlice(self.allocator);
+        switch (term) {
+            .Exited => |code| {
+                if (code == 0) {
+                    return stdout_list.toOwnedSlice(self.allocator);
+                }
+                self.log.logErrorFmt("opencode exited with code {d}", .{code});
+            },
+            .Signal => |sig| {
+                self.log.logErrorFmt("opencode terminated by signal {d}", .{sig});
+            },
+            .Stopped => |sig| {
+                self.log.logErrorFmt("opencode stopped by signal {d}", .{sig});
+            },
+            .Unknown => |status| {
+                self.log.logErrorFmt("opencode terminated with unknown status {d}", .{status});
+            },
         }
 
         stdout_list.deinit(self.allocator);

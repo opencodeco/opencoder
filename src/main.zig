@@ -99,6 +99,7 @@ fn runOpencoder(cfg: config.Config, allocator: std.mem.Allocator) !void {
 
     // Initialize executor
     var executor = Executor.init(&cfg, &log, allocator);
+    defer executor.deinit();
 
     // Run main loop
     var main_loop = loop.Loop.init(&cfg, &st, &paths, &log, &executor, allocator);
