@@ -22,6 +22,7 @@ pub const Executor = struct {
     log: *Logger,
     allocator: Allocator,
     session_id: ?[]const u8,
+    opencode_cmd: []const u8,
 
     /// Initialize executor
     pub fn init(cfg: *const config.Config, log: *Logger, allocator: Allocator) Executor {
@@ -30,6 +31,18 @@ pub const Executor = struct {
             .log = log,
             .allocator = allocator,
             .session_id = null,
+            .opencode_cmd = "opencode",
+        };
+    }
+
+    /// Initialize executor with custom opencode command (for testing)
+    pub fn initWithCmd(cfg: *const config.Config, log: *Logger, allocator: Allocator, opencode_cmd: []const u8) Executor {
+        return Executor{
+            .cfg = cfg,
+            .log = log,
+            .allocator = allocator,
+            .session_id = null,
+            .opencode_cmd = opencode_cmd,
         };
     }
 
@@ -166,7 +179,7 @@ pub const Executor = struct {
         var args = std.ArrayListUnmanaged([]const u8){};
         defer args.deinit(self.allocator);
 
-        try args.append(self.allocator, "opencode");
+        try args.append(self.allocator, self.opencode_cmd);
         try args.append(self.allocator, "run");
         try args.append(self.allocator, "--model");
         try args.append(self.allocator, model);
@@ -195,14 +208,16 @@ pub const Executor = struct {
 
         // Read stdout
         var stdout_list = std.ArrayListUnmanaged(u8){};
-        errdefer stdout_list.deinit(self.allocator);
 
         if (child.stdout) |stdout| {
             var buf: [4096]u8 = undefined;
             while (true) {
                 const n = stdout.read(&buf) catch break;
                 if (n == 0) break;
-                try stdout_list.appendSlice(self.allocator, buf[0..n]);
+                stdout_list.appendSlice(self.allocator, buf[0..n]) catch |err| {
+                    stdout_list.deinit(self.allocator);
+                    return err;
+                };
             }
         }
 
@@ -235,14 +250,178 @@ pub const Executor = struct {
 // Tests
 // ============================================================================
 
+// Test helper: Create a minimal mock logger for testing
+fn createTestLogger(allocator: Allocator) !*Logger {
+    // Create a temp directory for logging
+    const temp_dir = try std.fmt.allocPrint(allocator, "/tmp/opencoder_test_{d}", .{std.time.milliTimestamp()});
+    defer allocator.free(temp_dir);
+
+    try std.fs.cwd().makePath(temp_dir);
+
+    const cycle_log_dir = try std.fs.path.join(allocator, &.{ temp_dir, "cycles" });
+    const alerts_file = try std.fs.path.join(allocator, &.{ temp_dir, "alerts.log" });
+
+    try std.fs.cwd().makePath(cycle_log_dir);
+
+    const logger_ptr = try allocator.create(Logger);
+    logger_ptr.* = Logger{
+        .main_log = null,
+        .cycle_log_dir = cycle_log_dir,
+        .alerts_file = alerts_file,
+        .cycle = 0,
+        .verbose = false,
+        .allocator = allocator,
+    };
+    return logger_ptr;
+}
+
+fn destroyTestLogger(logger_ptr: *Logger, allocator: Allocator) void {
+    // Clean up temp directory
+    const temp_base = std.fs.path.dirname(logger_ptr.cycle_log_dir) orelse "/tmp";
+    std.fs.cwd().deleteTree(temp_base) catch {};
+
+    allocator.free(logger_ptr.cycle_log_dir);
+    allocator.free(logger_ptr.alerts_file);
+    allocator.destroy(logger_ptr);
+}
+
 test "Executor.init creates executor" {
-    // We can't fully test without a Logger, but we can test initialization structure
-    // This is more of a compile-time check
     const allocator = std.testing.allocator;
-    _ = allocator;
+    const test_logger = try createTestLogger(allocator);
+    defer destroyTestLogger(test_logger, allocator);
+
+    const test_cfg = config.Config{
+        .planning_model = "test/model",
+        .execution_model = "test/model",
+        .project_dir = "/tmp",
+        .verbose = false,
+        .user_hint = null,
+        .max_retries = 3,
+        .backoff_base = 1,
+        .log_retention = 30,
+    };
+
+    const executor = Executor.init(&test_cfg, test_logger, allocator);
+    try std.testing.expectEqualStrings("opencode", executor.opencode_cmd);
+    try std.testing.expect(executor.session_id == null);
+}
+
+test "Executor.initWithCmd creates executor with custom command" {
+    const allocator = std.testing.allocator;
+    const test_logger = try createTestLogger(allocator);
+    defer destroyTestLogger(test_logger, allocator);
+
+    const test_cfg = config.Config{
+        .planning_model = "test/model",
+        .execution_model = "test/model",
+        .project_dir = "/tmp",
+        .verbose = false,
+        .user_hint = null,
+        .max_retries = 3,
+        .backoff_base = 1,
+        .log_retention = 30,
+    };
+
+    const executor = Executor.initWithCmd(&test_cfg, test_logger, allocator, "./test_helpers/mock_opencode.sh");
+    try std.testing.expectEqualStrings("./test_helpers/mock_opencode.sh", executor.opencode_cmd);
 }
 
 test "ExecutionResult enum values" {
     try std.testing.expectEqual(ExecutionResult.success, ExecutionResult.success);
     try std.testing.expectEqual(ExecutionResult.failure, ExecutionResult.failure);
+}
+
+test "runOpencode handles successful execution" {
+    const allocator = std.testing.allocator;
+    const test_logger = try createTestLogger(allocator);
+    defer destroyTestLogger(test_logger, allocator);
+
+    const test_cfg = config.Config{
+        .planning_model = "test/model",
+        .execution_model = "test/model",
+        .project_dir = "/tmp",
+        .verbose = false,
+        .user_hint = null,
+        .max_retries = 3,
+        .backoff_base = 1,
+        .log_retention = 30,
+    };
+
+    // Get absolute path to mock script
+    var cwd_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const cwd = try std.fs.cwd().realpath(".", &cwd_buf);
+    const mock_path = try std.fs.path.join(allocator, &.{ cwd, "test_helpers/mock_opencode_success.sh" });
+    defer allocator.free(mock_path);
+
+    var executor = Executor.initWithCmd(&test_cfg, test_logger, allocator, mock_path);
+    defer executor.deinit();
+
+    const result = try executor.runOpencode("test/model", "Test", "test prompt", false);
+    defer allocator.free(result);
+
+    try std.testing.expect(result.len > 0);
+    try std.testing.expect(std.mem.indexOf(u8, result, "Mock opencode output") != null);
+}
+
+test "runOpencode handles process failure" {
+    const allocator = std.testing.allocator;
+    const test_logger = try createTestLogger(allocator);
+    defer destroyTestLogger(test_logger, allocator);
+
+    const test_cfg = config.Config{
+        .planning_model = "test/model",
+        .execution_model = "test/model",
+        .project_dir = "/tmp",
+        .verbose = false,
+        .user_hint = null,
+        .max_retries = 3,
+        .backoff_base = 1,
+        .log_retention = 30,
+    };
+
+    // Get absolute path to mock script
+    var cwd_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const cwd = try std.fs.cwd().realpath(".", &cwd_buf);
+    const mock_path = try std.fs.path.join(allocator, &.{ cwd, "test_helpers/mock_opencode_failure.sh" });
+    defer allocator.free(mock_path);
+
+    var executor = Executor.initWithCmd(&test_cfg, test_logger, allocator, mock_path);
+    defer executor.deinit();
+
+    const result = executor.runOpencode("test/model", "Test", "test prompt", false);
+    try std.testing.expectError(error.OpencodeFailed, result);
+}
+
+test "runOpencode passes session ID when continuing" {
+    const allocator = std.testing.allocator;
+    const test_logger = try createTestLogger(allocator);
+    defer destroyTestLogger(test_logger, allocator);
+
+    const test_cfg = config.Config{
+        .planning_model = "test/model",
+        .execution_model = "test/model",
+        .project_dir = "/tmp",
+        .verbose = false,
+        .user_hint = null,
+        .max_retries = 3,
+        .backoff_base = 1,
+        .log_retention = 30,
+    };
+
+    // Get absolute path to mock script
+    var cwd_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const cwd = try std.fs.cwd().realpath(".", &cwd_buf);
+    const mock_path = try std.fs.path.join(allocator, &.{ cwd, "test_helpers/mock_opencode_success.sh" });
+    defer allocator.free(mock_path);
+
+    var executor = Executor.initWithCmd(&test_cfg, test_logger, allocator, mock_path);
+    defer executor.deinit();
+
+    // Set a session ID
+    executor.session_id = try std.fmt.allocPrint(allocator, "test_session_123", .{});
+
+    const result = try executor.runOpencode("test/model", "Test", "test prompt", true);
+    defer allocator.free(result);
+
+    try std.testing.expect(result.len > 0);
 }
