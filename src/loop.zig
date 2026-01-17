@@ -11,6 +11,7 @@ const config = @import("config.zig");
 const state = @import("state.zig");
 const fsutil = @import("fs.zig");
 const plan = @import("plan.zig");
+const ideas = @import("ideas.zig");
 const evaluator = @import("evaluator.zig");
 const Logger = @import("logger.zig").Logger;
 const Executor = @import("executor.zig").Executor;
@@ -74,18 +75,113 @@ pub const Loop = struct {
 
             // Planning phase
             if (!fsutil.fileExists(self.paths.current_plan) or self.st.phase == .planning) {
-                const result = self.executor.runPlanning(self.st.cycle) catch |err| {
-                    self.log.logError("");
-                    self.log.logErrorFmt("[Cycle {d}] Planning phase failed: {s}", .{ self.st.cycle, @errorName(err) });
-                    self.log.logError("  The AI was unable to create a development plan");
-                    self.log.logError("  This could be due to:");
-                    self.log.logError("    - OpenCode CLI issues (check installation)");
-                    self.log.logError("    - Model API unavailability or rate limits");
-                    self.log.logError("    - Network connectivity problems");
-                    self.log.logErrorFmt("  Retrying after backoff...", .{});
-                    self.backoffSleep();
-                    continue;
-                };
+                // Check for ideas first
+                var idea_list = ideas.loadAllIdeas(self.paths.ideas_dir, self.allocator, self.cfg.max_file_size) catch null;
+
+                var result: ExecutionResult = .failure;
+
+                if (idea_list) |*list| {
+                    defer list.deinit();
+
+                    if (list.ideas.len == 1) {
+                        // Single idea - use it directly
+                        const selected = &list.ideas[0];
+                        self.log.sayFmt("[Cycle {d}] Found 1 idea: {s}", .{ self.st.cycle, selected.filename });
+
+                        const summary = selected.getSummary(self.allocator) catch "(unable to get summary)";
+                        defer self.allocator.free(summary);
+                        self.log.sayFmt("[Cycle {d}] Summary: {s}", .{ self.st.cycle, summary });
+
+                        // Remove the idea file before planning
+                        ideas.removeIdeaByPath(selected.path) catch |err| {
+                            self.log.logErrorFmt("Warning: Failed to remove idea file: {s}", .{@errorName(err)});
+                        };
+
+                        // Run planning for this idea
+                        result = self.executor.runIdeaPlanning(
+                            selected.content,
+                            selected.filename,
+                            self.st.cycle,
+                        ) catch |err| {
+                            self.log.logError("");
+                            self.log.logErrorFmt("[Cycle {d}] Idea planning failed: {s}", .{ self.st.cycle, @errorName(err) });
+                            self.log.logError("  The AI was unable to create a plan for the idea");
+                            self.log.logErrorFmt("  Retrying after backoff...", .{});
+                            self.backoffSleep();
+                            continue;
+                        };
+                    } else {
+                        // Multiple ideas - AI selects simplest one
+                        self.log.sayFmt("[Cycle {d}] Found {d} idea(s) in queue", .{ self.st.cycle, list.ideas.len });
+
+                        // Format ideas for AI selection
+                        const formatted = ideas.formatIdeasForSelection(list.ideas, self.allocator) catch |err| {
+                            self.log.logErrorFmt("Failed to format ideas for selection: {s}", .{@errorName(err)});
+                            // Fall through to normal planning below
+                            result = .failure;
+                            continue;
+                        };
+                        defer self.allocator.free(formatted);
+
+                        // Have AI select the simplest idea
+                        const selection = self.executor.runIdeaSelection(formatted, self.st.cycle) catch null;
+
+                        if (selection) |sel| {
+                            defer self.allocator.free(sel.reason);
+
+                            if (sel.index < list.ideas.len) {
+                                const selected = &list.ideas[sel.index];
+                                self.log.sayFmt("[Cycle {d}] Selected idea: {s}", .{ self.st.cycle, selected.filename });
+
+                                const summary = selected.getSummary(self.allocator) catch "(unable to get summary)";
+                                defer self.allocator.free(summary);
+                                self.log.sayFmt("[Cycle {d}] Summary: {s}", .{ self.st.cycle, summary });
+                                self.log.sayFmt("[Cycle {d}] Reason: {s}", .{ self.st.cycle, sel.reason });
+
+                                // Remove the idea file before planning
+                                ideas.removeIdeaByPath(selected.path) catch |err| {
+                                    self.log.logErrorFmt("Warning: Failed to remove idea file: {s}", .{@errorName(err)});
+                                };
+
+                                // Run planning for this specific idea
+                                result = self.executor.runIdeaPlanning(
+                                    selected.content,
+                                    selected.filename,
+                                    self.st.cycle,
+                                ) catch |err| {
+                                    self.log.logError("");
+                                    self.log.logErrorFmt("[Cycle {d}] Idea planning failed: {s}", .{ self.st.cycle, @errorName(err) });
+                                    self.log.logError("  The AI was unable to create a plan for the idea");
+                                    self.log.logErrorFmt("  Retrying after backoff...", .{});
+                                    self.backoffSleep();
+                                    continue;
+                                };
+                            } else {
+                                self.log.logErrorFmt("AI selected invalid idea index: {d}", .{sel.index});
+                                result = .failure;
+                            }
+                        } else {
+                            self.log.logError("AI failed to select an idea, falling back to autonomous planning");
+                            result = .failure;
+                        }
+                    }
+                }
+
+                // If no ideas or idea planning failed, do normal autonomous planning
+                if (result == .failure) {
+                    result = self.executor.runPlanning(self.st.cycle) catch |err| {
+                        self.log.logError("");
+                        self.log.logErrorFmt("[Cycle {d}] Planning phase failed: {s}", .{ self.st.cycle, @errorName(err) });
+                        self.log.logError("  The AI was unable to create a development plan");
+                        self.log.logError("  This could be due to:");
+                        self.log.logError("    - OpenCode CLI issues (check installation)");
+                        self.log.logError("    - Model API unavailability or rate limits");
+                        self.log.logError("    - Network connectivity problems");
+                        self.log.logErrorFmt("  Retrying after backoff...", .{});
+                        self.backoffSleep();
+                        continue;
+                    };
+                }
 
                 if (result == .failure) {
                     self.log.logError("");
