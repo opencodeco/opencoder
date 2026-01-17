@@ -24,6 +24,7 @@ pub const Paths = struct {
     cycle_log_dir: []const u8,
     alerts_file: []const u8,
     history_dir: []const u8,
+    ideas_dir: []const u8,
     allocator: Allocator,
 
     /// Free all allocated paths
@@ -35,6 +36,7 @@ pub const Paths = struct {
         self.allocator.free(self.cycle_log_dir);
         self.allocator.free(self.alerts_file);
         self.allocator.free(self.history_dir);
+        self.allocator.free(self.ideas_dir);
     }
 };
 
@@ -71,6 +73,9 @@ pub fn initDirectories(project_dir: []const u8, allocator: Allocator) !Paths {
     const history_dir = try std.fs.path.join(allocator, &.{ opencoder_dir, "history" });
     errdefer allocator.free(history_dir);
 
+    const ideas_dir = try std.fs.path.join(allocator, &.{ opencoder_dir, "ideas" });
+    errdefer allocator.free(ideas_dir);
+
     // Create directories with better error context
     ensureDir(opencoder_dir) catch |err| {
         if (@import("builtin").is_test == false) {
@@ -90,6 +95,7 @@ pub fn initDirectories(project_dir: []const u8, allocator: Allocator) !Paths {
     try ensureDir(logs_dir);
     try ensureDir(cycle_log_dir);
     try ensureDir(history_dir);
+    try ensureDir(ideas_dir);
 
     return Paths{
         .opencoder_dir = opencoder_dir,
@@ -99,6 +105,7 @@ pub fn initDirectories(project_dir: []const u8, allocator: Allocator) !Paths {
         .cycle_log_dir = cycle_log_dir,
         .alerts_file = alerts_file,
         .history_dir = history_dir,
+        .ideas_dir = ideas_dir,
         .allocator = allocator,
     };
 }
@@ -252,6 +259,7 @@ test "Paths construction" {
     try std.testing.expectEqualStrings("/tmp/opencoder_test_paths/.opencoder/state.json", paths.state_file);
     try std.testing.expectEqualStrings("/tmp/opencoder_test_paths/.opencoder/current_plan.md", paths.current_plan);
     try std.testing.expectEqualStrings("/tmp/opencoder_test_paths/.opencoder/history", paths.history_dir);
+    try std.testing.expectEqualStrings("/tmp/opencoder_test_paths/.opencoder/ideas", paths.ideas_dir);
 
     // Clean up
     fs.cwd().deleteTree("/tmp/opencoder_test_paths") catch {};
