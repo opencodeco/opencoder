@@ -82,6 +82,7 @@ src/
   fs.zig          # File system utilities
   logger.zig      # Logging infrastructure
   plan.zig        # Plan parsing, validation, markdown handling
+  ideas.zig       # Ideas queue management, selection logic
   executor.zig    # OpenCode CLI process execution
   evaluator.zig   # Plan completion evaluation
   loop.zig        # Main autonomous execution loop
@@ -259,6 +260,71 @@ pub const Phase = enum {
     }
 };
 ```
+
+## Ideas Queue Feature
+
+Opencoder includes an **ideas queue system** that allows users to provide specific tasks for the autonomous loop to work on. This is implemented in `src/ideas.zig`.
+
+### How It Works
+
+1. **Ideas Directory**: `.opencoder/ideas/` - Users place `.md` files here
+2. **Planning Integration**: Before each planning cycle, `loop.zig` checks for ideas
+3. **Selection Logic**:
+   - **1 idea**: Used directly (no AI selection call)
+   - **2+ ideas**: AI evaluates all and picks the simplest/quick-win considering dependencies
+4. **Execution**: Selected idea is deleted, plan is created from idea content
+5. **Fallback**: When ideas are exhausted, returns to autonomous planning
+
+### Key Files
+
+- **`ideas.zig`**: Core module with `Idea` struct, `loadAllIdeas()`, `formatIdeasForSelection()`
+- **`plan.zig`**: Added `generateIdeaSelectionPrompt()` and `generateIdeaPlanningPrompt()`
+- **`executor.zig`**: Added `runIdeaSelection()` and `runIdeaPlanning()` methods
+- **`loop.zig`**: Integrated ideas check before planning phase
+- **`fs.zig`**: Added `ideas_dir` to `Paths` struct
+
+### Selection Criteria
+
+The AI evaluates ideas based on:
+- **Simplicity**: Quick wins are prioritized
+- **Dependencies**: Prerequisites selected before dependents
+- **Priority order**: Bug fixes > Small features > Docs > Refactoring > Large features
+
+### Example Idea File
+
+```markdown
+# Fix Login Timeout Bug
+
+Users are being logged out after 5 minutes instead of the configured 30 minutes.
+
+Steps:
+1. Check session configuration
+2. Update timeout value in config
+3. Test with various session durations
+```
+
+### Testing Ideas Feature
+
+```bash
+# Test ideas.zig module
+zig test src/ideas.zig
+
+# Test plan.zig with new prompt functions
+zig test src/plan.zig
+
+# Test full integration
+mkdir -p test-project/.opencoder/ideas
+echo "Test idea content" > test-project/.opencoder/ideas/test.md
+./zig-out/bin/opencoder --provider opencode -p test-project
+```
+
+### Implementation Notes
+
+- Ideas take **full precedence** over user hints
+- Idea files are **deleted before planning** (prevents retry loops)
+- Empty/invalid ideas are **automatically cleaned up**
+- No naming conventions required - any `.md` file works
+- **Memory safe** - All allocations properly tracked and freed
 
 ## CI Pipeline
 

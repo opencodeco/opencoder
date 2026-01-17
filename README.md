@@ -7,6 +7,7 @@
 ## Features
 
 - **Autonomous Development Loop** - Continuously plans, executes, and evaluates without stopping
+- **Ideas Queue** - Drop markdown files in `.opencoder/ideas/` to prioritize specific tasks before autonomous planning
 - **Two-Model Architecture** - Uses a high-capability model for planning and a faster model for execution
 - **Provider Presets** - Quick setup with GitHub Copilot, Anthropic, OpenAI, or OpenCode backends
 - **State Persistence** - Resumes from where it left off after interruptions (JSON format)
@@ -181,6 +182,9 @@ OpenCoder creates a `.opencoder/` directory in your project:
 .opencoder/
 ├── state.json               # Current execution state (JSON)
 ├── current_plan.md          # Active task plan
+├── ideas/                   # Drop .md files here to queue tasks
+│   ├── feature-x.md
+│   └── bugfix-y.md
 ├── history/                 # Archived completed plans
 │   └── plan_YYYYMMDD_HHMMSS_cycleN.md
 └── logs/
@@ -222,9 +226,61 @@ Building a secure authentication system for the web application.
 Using bcrypt for password hashing, JWT for tokens.
 ```
 
+## Ideas Queue
+
+Want to direct OpenCoder toward specific tasks? Drop markdown files in `.opencoder/ideas/` and OpenCoder will prioritize them before generating its own plans.
+
+### Quick Start
+
+```bash
+# Create an idea
+cat > .opencoder/ideas/add-dark-mode.md << 'EOF'
+Add dark mode toggle with system preference detection.
+EOF
+
+# Run opencoder
+opencoder --provider github
+```
+
+### How It Works
+
+1. **Before Planning** - OpenCoder checks `.opencoder/ideas/` for `.md` files
+2. **Smart Selection**:
+   - **1 idea**: Uses it directly (no extra API call)
+   - **2+ ideas**: AI evaluates all and picks the simplest/quick-win, considering dependencies
+3. **Execution** - Selected idea is deleted, plan is created specifically for it
+4. **Fallback** - When ideas are exhausted, returns to autonomous planning
+
+### Selection Criteria
+
+The AI prioritizes based on:
+- **Simplicity** - Quick wins first
+- **Dependencies** - If idea B requires idea A, A is selected first
+- **Priority order** - Bug fixes > Small features > Docs > Refactoring > Large features
+
+### Example Output
+
+```
+[Cycle 5] Found 3 idea(s) in queue
+[Cycle 5] Selected idea: fix-login-timeout.md
+[Cycle 5] Summary: Fix login timeout issue where users are logged out after 5min
+[Cycle 5] Reason: Bug fix with no dependencies, can be completed quickly
+[Cycle 5] Planning for idea: fix-login-timeout.md
+[Cycle 5] Plan created with 3 tasks
+```
+
+### Tips for Ideas
+
+- **Be specific** - The more detailed the idea, the better the plan
+- **One idea per file** - Keep ideas focused and atomic
+- **Mention dependencies** - Explicitly state if an idea depends on another
+- **No naming convention** - Any `.md` filename works
+- **Auto-cleanup** - Empty/invalid ideas are automatically deleted
+
 ## Tips
 
 - **Start with a clear hint** - The more specific your instruction, the better the initial plan
+- **Use ideas for focus** - Drop task files in `.opencoder/ideas/` to direct development
 - **Let it run** - OpenCoder is designed to run continuously; trust the loop
 - **Check the logs** - Detailed logs are in `.opencoder/logs/` if something goes wrong
 - **Review history** - Completed plans are archived in `.opencoder/history/`
