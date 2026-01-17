@@ -305,6 +305,106 @@ pub fn generateEvaluationPrompt(allocator: Allocator) ![]const u8 {
     ;
 }
 
+/// Generate prompt for AI to select which idea to work on
+/// Considers both simplicity/quick-wins and dependencies between ideas
+pub fn generateIdeaSelectionPrompt(ideas_formatted: []const u8, allocator: Allocator) ![]const u8 {
+    var result = std.array_list.AlignedManaged(u8, null).init(allocator);
+    errdefer result.deinit();
+
+    try result.appendSlice(
+        \\You are an AI assistant helping prioritize development tasks.
+        \\
+        \\Below are several ideas/tasks that need to be implemented. Your job is to:
+        \\1. Analyze each idea for complexity and effort required
+        \\2. Identify any DEPENDENCIES between ideas (if idea B requires idea A to be done first)
+        \\3. Select the SIMPLEST idea that has NO blocking dependencies
+        \\4. Prioritize: bug fixes > small features > documentation > refactoring > large features
+        \\
+        \\IMPORTANT: If ideas have dependencies, you MUST select one that can be implemented 
+        \\independently OR is a prerequisite for other ideas.
+        \\
+        \\IDEAS TO EVALUATE:
+        \\
+        \\
+    );
+
+    try result.appendSlice(ideas_formatted);
+
+    try result.appendSlice(
+        \\
+        \\Respond with ONLY the idea number you selected and a brief reason, in this exact format:
+        \\SELECTED_IDEA: <number>
+        \\REASON: <one sentence explaining why this is the best quick-win>
+        \\
+        \\For example:
+        \\SELECTED_IDEA: 2
+        \\REASON: Small bug fix with no dependencies, can be completed quickly.
+        \\
+        \\Choose the quickest win that unblocks other work if dependencies exist.
+    );
+
+    return result.toOwnedSlice();
+}
+
+/// Generate planning prompt for a specific idea
+/// The idea takes full precedence over any user hints
+pub fn generateIdeaPlanningPrompt(cycle: u32, idea_content: []const u8, idea_filename: []const u8, allocator: Allocator) ![]const u8 {
+    var ts_buf: [24]u8 = undefined;
+    const ts = logger.timestampISO(&ts_buf);
+
+    var result = std.array_list.AlignedManaged(u8, null).init(allocator);
+    errdefer result.deinit();
+
+    try result.appendSlice(
+        \\CRITICAL: You are operating in an AUTONOMOUS CONTINUOUS DEVELOPMENT loop.
+        \\
+        \\You have been assigned a SPECIFIC IDEA to implement. Focus ONLY on this idea.
+        \\
+        \\STRICT REQUIREMENTS:
+        \\- You MUST create a plan with AT LEAST 3 actionable tasks for this specific idea
+        \\- NEVER ask questions or wait for user input
+        \\- Focus entirely on implementing the idea described below
+        \\- Break down the idea into concrete, actionable steps
+        \\
+        \\IDEA TO IMPLEMENT (from 
+    );
+    try result.appendSlice(idea_filename);
+    try result.appendSlice("):\n\n");
+    try result.appendSlice(idea_content);
+    try result.appendSlice(
+        \\
+        \\
+        \\Your task: Create a concrete development plan to implement this idea.
+        \\Save a markdown checklist to .opencoder/current_plan.md with 3-10 actionable tasks.
+        \\
+        \\The plan MUST follow this exact format:
+        \\# Plan: [descriptive title based on the idea]
+        \\Created: 
+    );
+    try result.appendSlice(ts);
+    try result.appendSlice("\nCycle: ");
+    try result.writer().print("{d}", .{cycle});
+    try result.appendSlice(
+        \\
+        \\
+        \\## Context
+        \\[Brief description of the idea and its purpose]
+        \\
+        \\## Tasks
+        \\- [ ] Task 1: Specific, actionable description
+        \\- [ ] Task 2: Specific, actionable description
+        \\- [ ] Task 3: Specific, actionable description
+        \\[Add more tasks as needed]
+        \\
+        \\## Notes
+        \\[Any additional context or dependencies]
+        \\
+        \\After creating the plan file, respond with: PLAN_CREATED
+    );
+
+    return result.toOwnedSlice();
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -421,4 +521,27 @@ test "generateEvaluationPrompt returns valid prompt" {
 
     try std.testing.expect(std.mem.indexOf(u8, prompt, "COMPLETE") != null);
     try std.testing.expect(std.mem.indexOf(u8, prompt, "NEEDS_WORK") != null);
+}
+
+test "generateIdeaSelectionPrompt includes ideas and format" {
+    const allocator = std.testing.allocator;
+    const ideas = "## Idea 1: test.md\nTest content";
+    const prompt = try generateIdeaSelectionPrompt(ideas, allocator);
+    defer allocator.free(prompt);
+
+    try std.testing.expect(std.mem.indexOf(u8, prompt, "SELECTED_IDEA:") != null);
+    try std.testing.expect(std.mem.indexOf(u8, prompt, "REASON:") != null);
+    try std.testing.expect(std.mem.indexOf(u8, prompt, "Test content") != null);
+    try std.testing.expect(std.mem.indexOf(u8, prompt, "dependencies") != null);
+}
+
+test "generateIdeaPlanningPrompt includes idea content and filename" {
+    const allocator = std.testing.allocator;
+    const prompt = try generateIdeaPlanningPrompt(5, "Add dark mode support", "dark-mode.md", allocator);
+    defer allocator.free(prompt);
+
+    try std.testing.expect(std.mem.indexOf(u8, prompt, "Add dark mode support") != null);
+    try std.testing.expect(std.mem.indexOf(u8, prompt, "dark-mode.md") != null);
+    try std.testing.expect(std.mem.indexOf(u8, prompt, "PLAN_CREATED") != null);
+    try std.testing.expect(std.mem.indexOf(u8, prompt, "Cycle: 5") != null);
 }
