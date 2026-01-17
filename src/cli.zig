@@ -129,9 +129,9 @@ const usage_text =
     \\  opencoder -P MODEL -E MODEL [OPTIONS] [HINT]
     \\
     \\Required Arguments (choose one):
-    \\  --provider PROVIDER            Use a provider preset (github, anthropic, openai, opencode)
-    \\  -P, --planning-model MODEL     Model for planning/evaluation (e.g., anthropic/claude-sonnet-4)
-    \\  -E, --execution-model MODEL    Model for task execution (e.g., anthropic/claude-haiku)
+    \\  --provider PROVIDER            Use a provider preset (github, anthropic, opencode)
+    \\  -P, --planning-model MODEL     Model for planning/evaluation (e.g., anthropic/claude-opus-4-5)
+    \\  -E, --execution-model MODEL    Model for task execution (e.g., anthropic/claude-sonnet-4-5)
     \\
     \\Optional Arguments:
     \\  -p, --project DIR              Project directory (default: $OPENCODER_PROJECT_DIR or $PWD)
@@ -142,8 +142,7 @@ const usage_text =
     \\
     \\Provider Presets:
     \\  github                         Planning: claude-opus-4.5, Execution: claude-sonnet-4.5
-    \\  anthropic                      Planning: claude-sonnet-4, Execution: claude-haiku
-    \\  openai                         Planning: gpt-4, Execution: gpt-4o-mini
+    \\  anthropic                      Planning: claude-opus-4-5, Execution: claude-sonnet-4-5
     \\  opencode                       Planning: glm-4.7-free, Execution: minimax-m2.1-free
     \\
     \\Environment Variables:
@@ -194,7 +193,7 @@ pub fn formatError(err: ParseError, file: std.fs.File) void {
         \\  1. Provider preset:  opencoder --provider github
         \\  2. Explicit models:  opencoder -P planning-model -E execution-model
         \\
-        \\Available providers: github, anthropic, openai, opencode
+        \\Available providers: github, anthropic, opencode
         \\
         \\For detailed help, run: opencoder --help
         \\
@@ -217,8 +216,7 @@ pub fn formatError(err: ParseError, file: std.fs.File) void {
         \\
         \\Available providers:
         \\  github     - GitHub Copilot models (Claude Opus 4.5 / Sonnet 4.5)
-        \\  anthropic  - Anthropic models (Claude Sonnet 4 / Haiku)
-        \\  openai     - OpenAI models (GPT-4 / GPT-4o-mini)
+        \\  anthropic  - Anthropic models (Claude Opus 4-5 / Sonnet 4-5)
         \\  opencode   - OpenCode free models (GLM-4.7 / Minimax M2.1)
         \\
         \\Usage: opencoder --provider <name>
@@ -307,18 +305,8 @@ test "parse with anthropic provider preset" {
     defer if (result == .run) std.testing.allocator.free(result.run.project_dir);
 
     try std.testing.expect(result == .run);
-    try std.testing.expectEqualStrings("anthropic/claude-sonnet-4", result.run.planning_model);
-    try std.testing.expectEqualStrings("anthropic/claude-haiku", result.run.execution_model);
-}
-
-test "parse with openai provider preset" {
-    const args = &[_][]const u8{ "--provider", "openai" };
-    const result = try parseFromSlice(std.testing.allocator, args);
-    defer if (result == .run) std.testing.allocator.free(result.run.project_dir);
-
-    try std.testing.expect(result == .run);
-    try std.testing.expectEqualStrings("openai/gpt-4", result.run.planning_model);
-    try std.testing.expectEqualStrings("openai/gpt-4o-mini", result.run.execution_model);
+    try std.testing.expectEqualStrings("anthropic/claude-opus-4-5", result.run.planning_model);
+    try std.testing.expectEqualStrings("anthropic/claude-sonnet-4-5", result.run.execution_model);
 }
 
 test "parse with opencode provider preset" {
@@ -422,7 +410,7 @@ test "parse with mixed explicit models and provider (explicit wins)" {
 }
 
 test "parse with options in different order" {
-    const args = &[_][]const u8{ "-v", "build something", "--provider", "openai", "-p", "." };
+    const args = &[_][]const u8{ "-v", "build something", "--provider", "github", "-p", "." };
     const result = try parseFromSlice(std.testing.allocator, args);
     defer if (result == .run) std.testing.allocator.free(result.run.project_dir);
 

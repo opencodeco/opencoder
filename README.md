@@ -9,7 +9,7 @@
 - **Autonomous Development Loop** - Continuously plans, executes, and evaluates without stopping
 - **Ideas Queue** - Drop markdown files in `.opencoder/ideas/` to prioritize specific tasks before autonomous planning
 - **Two-Model Architecture** - Uses a high-capability model for planning and a faster model for execution
-- **Provider Presets** - Quick setup with GitHub Copilot, Anthropic, OpenAI, or OpenCode backends
+- **Provider Presets** - Quick setup with GitHub Copilot, Anthropic, or OpenCode backends
 - **State Persistence** - Resumes from where it left off after interruptions (JSON format)
 - **Exponential Backoff** - Graceful retry logic for transient failures
 - **Plan History** - Archives completed plans for reference
@@ -108,9 +108,6 @@ opencoder --provider github
 # Anthropic Claude
 opencoder --provider anthropic
 
-# OpenAI GPT
-opencoder --provider openai
-
 # OpenCode free models
 opencoder --provider opencode
 ```
@@ -128,15 +125,15 @@ opencoder --provider opencode "implement authentication with JWT"
 ### Using Explicit Models
 
 ```bash
-opencoder -P anthropic/claude-sonnet-4 -E anthropic/claude-haiku
-opencoder -P openai/gpt-4 -E openai/gpt-4o-mini "build a CLI tool"
+opencoder -P anthropic/claude-opus-4-5 -E anthropic/claude-sonnet-4-5
+opencoder -P opencode/glm-4.7-free -E opencode/minimax-m2.1-free "build a CLI tool"
 ```
 
 ### Options
 
 | Flag | Description |
 |------|-------------|
-| `--provider PROVIDER` | Use a provider preset (github, anthropic, openai, opencode) |
+| `--provider PROVIDER` | Use a provider preset (github, anthropic, opencode) |
 | `-P, --planning-model MODEL` | Model for planning/evaluation phases |
 | `-E, --execution-model MODEL` | Model for task execution |
 | `-p, --project DIR` | Project directory (default: current directory) |
@@ -149,8 +146,7 @@ opencoder -P openai/gpt-4 -E openai/gpt-4o-mini "build a CLI tool"
 | Provider | Planning Model | Execution Model |
 |----------|----------------|-----------------|
 | `github` | claude-opus-4.5 | claude-sonnet-4.5 |
-| `anthropic` | claude-sonnet-4 | claude-haiku |
-| `openai` | gpt-4 | gpt-4o-mini |
+| `anthropic` | claude-opus-4-5 | claude-sonnet-4-5 |
 | `opencode` | glm-4.7-free | minimax-m2.1-free |
 
 ## How It Works

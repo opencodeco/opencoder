@@ -13,7 +13,6 @@ pub const version = "0.1.0";
 pub const Provider = enum {
     github,
     anthropic,
-    openai,
     opencode,
 
     /// Parse provider from string
@@ -21,7 +20,6 @@ pub const Provider = enum {
         const map = std.StaticStringMap(Provider).initComptime(.{
             .{ "github", .github },
             .{ "anthropic", .anthropic },
-            .{ "openai", .openai },
             .{ "opencode", .opencode },
         });
         return map.get(str);
@@ -32,7 +30,6 @@ pub const Provider = enum {
         return switch (self) {
             .github => "github",
             .anthropic => "anthropic",
-            .openai => "openai",
             .opencode => "opencode",
         };
     }
@@ -52,12 +49,8 @@ pub fn getProviderModels(provider: Provider) ModelPair {
             .execution = "github-copilot/claude-sonnet-4.5",
         },
         .anthropic => .{
-            .planning = "anthropic/claude-sonnet-4",
-            .execution = "anthropic/claude-haiku",
-        },
-        .openai => .{
-            .planning = "openai/gpt-4",
-            .execution = "openai/gpt-4o-mini",
+            .planning = "anthropic/claude-opus-4-5",
+            .execution = "anthropic/claude-sonnet-4-5",
         },
         .opencode => .{
             .planning = "opencode/glm-4.7-free",
@@ -140,7 +133,6 @@ pub const Config = struct {
 test "Provider.fromString parses valid providers" {
     try std.testing.expectEqual(Provider.github, Provider.fromString("github").?);
     try std.testing.expectEqual(Provider.anthropic, Provider.fromString("anthropic").?);
-    try std.testing.expectEqual(Provider.openai, Provider.fromString("openai").?);
     try std.testing.expectEqual(Provider.opencode, Provider.fromString("opencode").?);
 }
 
@@ -152,7 +144,6 @@ test "Provider.fromString returns null for invalid provider" {
 test "Provider.toString returns correct strings" {
     try std.testing.expectEqualStrings("github", Provider.github.toString());
     try std.testing.expectEqualStrings("anthropic", Provider.anthropic.toString());
-    try std.testing.expectEqualStrings("openai", Provider.openai.toString());
     try std.testing.expectEqualStrings("opencode", Provider.opencode.toString());
 }
 
@@ -164,14 +155,8 @@ test "getProviderModels returns correct models for github" {
 
 test "getProviderModels returns correct models for anthropic" {
     const models = getProviderModels(.anthropic);
-    try std.testing.expectEqualStrings("anthropic/claude-sonnet-4", models.planning);
-    try std.testing.expectEqualStrings("anthropic/claude-haiku", models.execution);
-}
-
-test "getProviderModels returns correct models for openai" {
-    const models = getProviderModels(.openai);
-    try std.testing.expectEqualStrings("openai/gpt-4", models.planning);
-    try std.testing.expectEqualStrings("openai/gpt-4o-mini", models.execution);
+    try std.testing.expectEqualStrings("anthropic/claude-opus-4-5", models.planning);
+    try std.testing.expectEqualStrings("anthropic/claude-sonnet-4-5", models.execution);
 }
 
 test "getProviderModels returns correct models for opencode" {
