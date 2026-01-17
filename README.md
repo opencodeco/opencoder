@@ -15,6 +15,48 @@
 - **Signal Handling** - Clean shutdown with state preservation
 - **Cross-Platform** - Builds for Linux and macOS (amd64/arm64)
 
+## Why OpenCoder?
+
+### The Gap
+
+[OpenCode](https://opencode.ai) is an incredible AI coding agent with a powerful interactive TUI. You can have rich conversations, ask follow-up questions, and collaborate on complex problems. It's excellent when you want to **work with** the AI.
+
+But what if you want the AI to **work for you** while you're away?
+
+### The "Aha!" Moment
+
+OpenCoder's insight is simple but powerful:
+
+> **What if the AI never stopped improving your project?**
+
+Instead of interactive sessions where you guide the AI, OpenCoder creates an *autonomous development loop* that runs continuously:
+
+| OpenCode (Interactive) | OpenCoder (Autonomous) |
+|------------------------|------------------------|
+| You drive the conversation | AI drives the development |
+| Responds when you prompt | Runs continuously without prompts |
+| Requires your presence | Works while you're away |
+| You decide what's next | AI decides what's next |
+| Great for collaboration | Great for delegation |
+
+### When to Use OpenCoder
+
+- **Greenfield projects**: "Build me a REST API" and walk away
+- **Overnight development**: Start before bed, wake up to progress
+- **Continuous improvement**: Let AI find and fix issues you haven't thought of
+- **Background tasks**: Run while you focus on other work
+
+### When to Use OpenCode Directly
+
+- Interactive pair programming where you want to guide the AI
+- Quick one-off tasks where you'll review immediately
+- Complex decisions requiring human judgment at each step
+- Learning by watching the AI's reasoning in real-time
+
+### The Philosophy
+
+OpenCoder treats software development as an **infinite game**. There's always another test to write, another edge case to handle, another optimization to make. OpenCoder embraces this by never declaring "done"—it continuously cycles through planning, execution, and evaluation until you tell it to stop.
+
 ## Installation
 
 ### Pre-built Binaries
@@ -112,7 +154,7 @@ opencoder -P openai/gpt-4 -E openai/gpt-4o-mini "build a CLI tool"
 
 ## How It Works
 
-Opencoder implements an **agentic development loop** with three phases:
+OpenCoder implements an **agentic development loop** with three phases:
 
 ```
      +-------------+     +-------------+     +-------------+
@@ -133,7 +175,7 @@ The loop continues indefinitely until manually stopped (Ctrl+C).
 
 ## Directory Structure
 
-Opencoder creates a `.opencoder/` directory in your project:
+OpenCoder creates a `.opencoder/` directory in your project:
 
 ```
 .opencoder/
@@ -183,7 +225,7 @@ Using bcrypt for password hashing, JWT for tokens.
 ## Tips
 
 - **Start with a clear hint** - The more specific your instruction, the better the initial plan
-- **Let it run** - Opencoder is designed to run continuously; trust the loop
+- **Let it run** - OpenCoder is designed to run continuously; trust the loop
 - **Check the logs** - Detailed logs are in `.opencoder/logs/` if something goes wrong
 - **Review history** - Completed plans are archived in `.opencoder/history/`
 
