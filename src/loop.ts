@@ -112,7 +112,7 @@ export async function runLoop(config: Config): Promise<void> {
 		// Cleanup
 		logger.flush()
 		await builder.shutdown()
-		logger.say("Opencoder stopped.")
+		logger.say("OpenCoder stopped.")
 	}
 }
 
@@ -123,7 +123,7 @@ function logStartupInfo(logger: Logger, config: Config): void {
 	// Get version from build-time define or package.json
 	const version = typeof VERSION !== "undefined" ? VERSION : "1.0.0"
 
-	logger.say(`\nOpencoder v${version}`)
+	logger.say(`\nOpenCoder v${version}`)
 	logger.say(`Project: ${config.projectDir}`)
 	logger.say(`Plan model: ${config.planModel}`)
 	logger.say(`Build model: ${config.buildModel}`)
@@ -277,6 +277,7 @@ async function runBuildPhase(
 	if (shutdownRequested) return
 
 	// Build the task
+	logger.activity("Building task", `${state.currentTaskNum}/${tasks.length}`)
 	const result = await builder.runTask(
 		nextTask.description,
 		state.cycle,

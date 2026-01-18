@@ -11,12 +11,26 @@ const ANSI = {
 	reset: "\x1b[0m",
 	bold: "\x1b[1m",
 	dim: "\x1b[2m",
+	italic: "\x1b[3m",
 	red: "\x1b[31m",
 	green: "\x1b[32m",
 	yellow: "\x1b[33m",
 	blue: "\x1b[34m",
+	magenta: "\x1b[35m",
 	cyan: "\x1b[36m",
+	gray: "\x1b[90m",
 	clearLine: "\r\x1b[K",
+}
+
+/** Symbols for visual indicators */
+const SYMBOLS = {
+	thinking: "💭",
+	tool: "🔧",
+	result: "  →",
+	success: "✓",
+	error: "✗",
+	arrow: "▶",
+	spinner: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
 }
 
 export class Logger {
@@ -25,6 +39,10 @@ export class Logger {
 	private cycleLogFile?: string
 	private logBuffer: string[] = []
 	private readonly BUFFER_SIZE = 2048
+	private spinnerInterval?: ReturnType<typeof setInterval>
+	private spinnerIndex = 0
+	private currentSpinnerMessage = ""
+	private isSpinning = false
 
 	constructor(paths: Paths, verbose: boolean) {
 		this.paths = paths
@@ -145,28 +163,62 @@ export class Logger {
 	 * Log a tool call
 	 */
 	toolCall(name: string, input?: unknown): void {
-		const inputStr = input ? `: ${JSON.stringify(input)}` : ""
-		const truncated = inputStr.length > 100 ? `${inputStr.slice(0, 100)}...` : inputStr
-		console.log(`${ANSI.cyan}[TOOL] ${name}${truncated}${ANSI.reset}`)
+		this.stopSpinner()
+		const inputStr = input ? this.formatToolInput(input) : ""
+		console.log(
+			`${ANSI.cyan}${SYMBOLS.tool} ${ANSI.bold}${name}${ANSI.reset}${ANSI.dim}${inputStr}${ANSI.reset}`,
+		)
 		this.writeToBuffer(this.formatForFile(`[TOOL] ${name}${inputStr}`))
+	}
+
+	/**
+	 * Format tool input for display
+	 */
+	private formatToolInput(input: unknown): string {
+		if (typeof input === "string") {
+			return input.length > 80 ? ` ${input.slice(0, 80)}...` : ` ${input}`
+		}
+		if (typeof input === "object" && input !== null) {
+			const obj = input as Record<string, unknown>
+			// Show key parameters for common tools
+			if ("filePath" in obj) return ` ${obj.filePath}`
+			if ("path" in obj) return ` ${obj.path}`
+			if ("pattern" in obj) return ` ${obj.pattern}`
+			if ("command" in obj) {
+				const cmd = String(obj.command)
+				return cmd.length > 60 ? ` ${cmd.slice(0, 60)}...` : ` ${cmd}`
+			}
+			if ("query" in obj) return ` "${obj.query}"`
+			// Fallback: stringify and truncate
+			const str = JSON.stringify(input)
+			return str.length > 80 ? ` ${str.slice(0, 80)}...` : ` ${str}`
+		}
+		return ""
 	}
 
 	/**
 	 * Log a tool result
 	 */
 	toolResult(output: string): void {
-		const truncated = output.length > 200 ? `${output.slice(0, 200)}...` : output
-		console.log(`${ANSI.dim}[RESULT] ${truncated}${ANSI.reset}`)
+		// Only show tool results in verbose mode - they can be noisy
+		if (this.verbose) {
+			const truncated = output.length > 200 ? `${output.slice(0, 200)}...` : output
+			const firstLine = truncated.split("\n")[0] || truncated
+			console.log(`${ANSI.gray}${SYMBOLS.result} ${firstLine}${ANSI.reset}`)
+		}
 		this.writeToBuffer(this.formatForFile(`[RESULT] ${output}`))
 	}
 
 	/**
-	 * Log thinking/reasoning (only in verbose mode to console)
+	 * Log thinking/reasoning - shown by default for visibility
 	 */
 	thinking(text: string): void {
-		if (this.verbose) {
-			console.log(`${ANSI.dim}[THINKING] ${text}${ANSI.reset}`)
-		}
+		this.stopSpinner()
+		// Show thinking in a visually distinct way
+		const lines = text.split("\n")
+		const firstLine = lines[0] || text
+		const display = firstLine.length > 100 ? `${firstLine.slice(0, 100)}...` : firstLine
+		console.log(`${ANSI.magenta}${SYMBOLS.thinking} ${ANSI.italic}${display}${ANSI.reset}`)
 		this.writeToBuffer(this.formatForFile(`[THINKING] ${text}`))
 	}
 
@@ -179,6 +231,60 @@ export class Logger {
 			console.log(`${ANSI.dim}${msg}${ANSI.reset}`)
 		}
 		this.writeToBuffer(this.formatForFile(msg))
+	}
+
+	/**
+	 * Start a spinner with a message (for long-running operations)
+	 */
+	startSpinner(message: string): void {
+		if (this.isSpinning) {
+			this.stopSpinner()
+		}
+
+		this.isSpinning = true
+		this.currentSpinnerMessage = message
+		this.spinnerIndex = 0
+
+		this.spinnerInterval = setInterval(() => {
+			const frame = SYMBOLS.spinner[this.spinnerIndex % SYMBOLS.spinner.length]
+			process.stdout.write(
+				`${ANSI.clearLine}${ANSI.cyan}${frame}${ANSI.reset} ${this.currentSpinnerMessage}`,
+			)
+			this.spinnerIndex++
+		}, 80)
+	}
+
+	/**
+	 * Update spinner message without stopping it
+	 */
+	updateSpinner(message: string): void {
+		if (this.isSpinning) {
+			this.currentSpinnerMessage = message
+		}
+	}
+
+	/**
+	 * Stop the spinner and clear the line
+	 */
+	stopSpinner(): void {
+		if (this.spinnerInterval) {
+			clearInterval(this.spinnerInterval)
+			this.spinnerInterval = undefined
+		}
+		if (this.isSpinning) {
+			process.stdout.write(ANSI.clearLine)
+			this.isSpinning = false
+		}
+	}
+
+	/**
+	 * Log activity indicator (brief visual feedback)
+	 */
+	activity(action: string, detail?: string): void {
+		this.stopSpinner()
+		const detailStr = detail ? ` ${ANSI.dim}${detail}${ANSI.reset}` : ""
+		console.log(`${ANSI.blue}${SYMBOLS.arrow} ${action}${detailStr}${ANSI.reset}`)
+		this.writeToBuffer(this.formatForFile(`[ACTIVITY] ${action} ${detail || ""}`))
 	}
 
 	/**

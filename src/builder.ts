@@ -219,6 +219,7 @@ export class Builder {
 		const { providerID, modelID } = parseModel(model)
 
 		this.logger.logVerbose(`${phase} with ${model}...`)
+		this.logger.startSpinner(`${phase}...`)
 
 		const result = await this.client.session.prompt({
 			path: { id: sessionId },
@@ -227,6 +228,8 @@ export class Builder {
 				parts: [{ type: "text", text: prompt }],
 			},
 		})
+
+		this.logger.stopSpinner()
 
 		if (!result.data) {
 			throw new Error("No response from OpenCode")
@@ -280,6 +283,7 @@ export class Builder {
 				// Stream text output in real-time
 				const text = properties?.text
 				if (typeof text === "string") {
+					this.logger.stopSpinner()
 					this.logger.stream(text)
 				}
 				break
@@ -289,13 +293,16 @@ export class Builder {
 				const name = properties?.name
 				const input = properties?.input
 				if (typeof name === "string") {
+					this.logger.stopSpinner()
 					this.logger.streamEnd()
 					this.logger.toolCall(name, input)
+					this.logger.startSpinner(`Running ${name}...`)
 				}
 				break
 			}
 
 			case "message.part.tool.result": {
+				this.logger.stopSpinner()
 				const output = properties?.output
 				if (typeof output === "string" && output.length > 0) {
 					this.logger.toolResult(output)
@@ -306,12 +313,14 @@ export class Builder {
 			case "message.part.thinking": {
 				const text = properties?.text
 				if (typeof text === "string") {
+					this.logger.stopSpinner()
 					this.logger.thinking(text)
 				}
 				break
 			}
 
 			case "message.complete": {
+				this.logger.stopSpinner()
 				this.logger.streamEnd()
 				const usage = properties?.usage as { input?: number; output?: number } | undefined
 				if (usage?.input !== undefined && usage?.output !== undefined) {
@@ -321,6 +330,7 @@ export class Builder {
 			}
 
 			case "message.error": {
+				this.logger.stopSpinner()
 				const message = properties?.message
 				if (typeof message === "string") {
 					this.logger.logError(message)
@@ -331,6 +341,7 @@ export class Builder {
 			case "session.complete":
 			case "session.abort":
 				// Session ended
+				this.logger.stopSpinner()
 				this.logger.logVerbose(`Session ${type}`)
 				break
 
