@@ -121,9 +121,9 @@ pub const Logger = struct {
             defer file.close();
 
             const stat = try file.stat();
-            const mtime = stat.mtime;
+            const mtime_secs = @divFloor(stat.mtime, std.time.ns_per_s);
 
-            if (mtime < cutoff_timestamp) {
+            if (mtime_secs < cutoff_timestamp) {
                 dir.deleteFile(path) catch {};
             }
         }
@@ -154,9 +154,9 @@ pub const Logger = struct {
             defer file.close();
 
             const stat = try file.stat();
-            const mtime = stat.mtime;
+            const mtime_secs = @divFloor(stat.mtime, std.time.ns_per_s);
 
-            if (mtime < cutoff_timestamp) {
+            if (mtime_secs < cutoff_timestamp) {
                 dir.deleteFile(path) catch {};
             }
         }
@@ -182,9 +182,9 @@ pub const Logger = struct {
             defer file.close();
 
             const stat = try file.stat();
-            const mtime = stat.mtime;
+            const mtime_secs = @divFloor(stat.mtime, std.time.ns_per_s);
 
-            if (mtime < cutoff_timestamp) {
+            if (mtime_secs < cutoff_timestamp) {
                 dir.deleteFile(path) catch {};
             }
         }
