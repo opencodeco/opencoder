@@ -1,20 +1,54 @@
 PREFIX ?= /usr/local
+VERSION ?= 1.0.0
 
-.PHONY: all test lint clean install
+.PHONY: all dev test lint format clean install build-linux-x64 build-darwin-arm64 build-windows build-all
 
 all:
-	zig build -Doptimize=ReleaseSafe
+	bun build --compile --minify --sourcemap \
+		--define VERSION='"$(VERSION)"' \
+		src/index.ts --outfile opencoder
+
+dev:
+	bun run src/index.ts
 
 test:
-	zig build test
+	bun test
 
 lint:
-	zig fmt src/
-	zig fmt --check src/
+	bunx biome check src/ tests/
+
+lint-fix:
+	bunx biome check --write src/ tests/
+
+format:
+	bunx biome format --write src/ tests/
 
 clean:
-	rm -rf zig-out .zig-cache
+	rm -rf opencoder opencoder-* opencoder.exe node_modules bun.lockb
 
 install: all
 	install -d $(PREFIX)/bin
-	install -m 755 zig-out/bin/opencoder $(PREFIX)/bin/
+	install -m 755 opencoder $(PREFIX)/bin/
+
+# Cross-compilation targets
+build-linux-x64:
+	bun build --compile --minify --sourcemap --target=bun-linux-x64 \
+		--define VERSION='"$(VERSION)"' \
+		src/index.ts --outfile opencoder-linux-x64
+
+build-darwin-arm64:
+	bun build --compile --minify --sourcemap --target=bun-darwin-arm64 \
+		--define VERSION='"$(VERSION)"' \
+		src/index.ts --outfile opencoder-darwin-arm64
+
+build-darwin-x64:
+	bun build --compile --minify --sourcemap --target=bun-darwin-x64 \
+		--define VERSION='"$(VERSION)"' \
+		src/index.ts --outfile opencoder-darwin-x64
+
+build-windows:
+	bun build --compile --minify --sourcemap --target=bun-windows-x64 \
+		--define VERSION='"$(VERSION)"' \
+		src/index.ts --outfile opencoder.exe
+
+build-all: all build-linux-x64 build-darwin-arm64 build-darwin-x64 build-windows

@@ -1,26 +1,19 @@
 # OpenCoder
 .opencoder/
 
-# Zig build artifacts
-.zig-cache/
-zig-out/
+# Bun
+node_modules/
+bun.lockb
 
-# Build directories
-build/
+# Build artifacts
+opencoder
+opencoder-*
+opencoder.exe
 dist/
 
-# Object files
-*.o
-*.obj
-
-# Executables
-*.exe
-*.out
-*.app
-
-# Debug files
-*.dSYM/
-*.pdb
+# Zig build artifacts (legacy)
+.zig-cache/
+zig-out/
 
 # IDE and editor files
 .vscode/
@@ -36,12 +29,11 @@ dist/
 
 # Coverage reports
 coverage/
-*.profraw
-*.profdata
 
 # Testing artifacts
 test-results/
 
-# Dependencies (if any)
-lib/
-vendor/
+# Debug files
+*.dSYM/
+*.pdb
+*.map

@@ -4,284 +4,317 @@ This file provides instructions for AI coding agents working in this repository.
 
 ## Project Overview
 
-Opencoder is a native CLI application written in **Zig** that runs OpenCode CLI in a fully autonomous development loop. It creates plans and executes them continuously without stopping.
+Opencoder is a CLI application written in **TypeScript** that uses the OpenCode SDK to run a fully autonomous development loop. It creates plans and executes them continuously without stopping.
 
-- **Language**: Zig (0.14.0+ required, 0.15.2 used in CI)
-- **Dependencies**: Zig standard library only (no external dependencies)
-- **Build System**: Zig build system (`build.zig`)
+- **Language**: TypeScript
+- **Runtime**: Bun (1.0+ required)
+- **Dependencies**: `@opencode-ai/sdk`, `commander`
+- **Build System**: Bun build (`bun build --compile`)
 
 ## Build Commands
 
 ### Using Make (Recommended)
 
 ```bash
-make          # Build release version
+make          # Build release version (single executable)
 make test     # Run all tests
-make lint     # Format and check code
+make lint     # Format and check code with Biome
 make clean    # Remove build artifacts
 make install  # Install to /usr/local/bin (PREFIX configurable)
 ```
 
-### Using Zig Directly
+### Using Bun Directly
 
 ```bash
-# Build debug version
-zig build
+# Install dependencies
+bun install
 
-# Build release version
-zig build -Doptimize=ReleaseSafe
+# Build release executable
+bun run build
 
-# Run the application
-zig build run
+# Run in development
+bun run dev
 
 # Run with arguments
-zig build run -- --provider github --verbose
+bun run dev -- --model anthropic/claude-sonnet-4 -p ./myproject
 ```
 
 ## Testing
 
 ```bash
 # Run all tests
-zig build test
+bun test
 
-# Run tests for a specific module
-zig test src/config.zig
-zig test src/cli.zig
-zig test src/logger.zig
-zig test src/fs.zig
-zig test src/state.zig
-zig test src/plan.zig
-zig test src/executor.zig
-zig test src/evaluator.zig
-zig test src/loop.zig
+# Run tests for a specific file
+bun test tests/config.test.ts
+bun test tests/state.test.ts
+bun test tests/plan.test.ts
+bun test tests/ideas.test.ts
+bun test tests/evaluator.test.ts
+
+# Run tests with watch mode
+bun test --watch
 ```
-
-**Note**: Zig does not support running individual tests by name. Tests are per-file.
 
 ## Linting and Formatting
 
 ```bash
-# Check formatting (used in CI)
-zig fmt --check src/
+# Check and auto-fix (used in CI)
+bunx biome check --write src/
 
-# Auto-format code
-zig fmt src/
+# Check only (no auto-fix)
+bunx biome check src/
 
-# Format a specific file
-zig fmt src/config.zig
+# Format only
+bunx biome format --write src/
+
+# Lint only
+bunx biome lint src/
 ```
 
 ## Source Code Structure
 
 ```
 src/
-  main.zig        # Entry point, CLI orchestration
-  cli.zig         # CLI argument parsing, help/usage text
-  config.zig      # Configuration, provider presets, env vars
-  state.zig       # Execution state persistence (JSON)
-  fs.zig          # File system utilities
-  logger.zig      # Logging infrastructure
-  plan.zig        # Plan parsing, validation, markdown handling
-  ideas.zig       # Ideas queue management, selection logic
-  executor.zig    # OpenCode CLI process execution
-  evaluator.zig   # Plan completion evaluation
-  loop.zig        # Main autonomous execution loop
+  index.ts        # Entry point
+  cli.ts          # CLI argument parsing with commander
+  config.ts       # Configuration loading (file + env + CLI merge)
+  types.ts        # TypeScript interfaces and types
+  state.ts        # State persistence (JSON)
+  fs.ts           # File system utilities
+  logger.ts       # Logging with live output streaming
+  plan.ts         # Plan parsing, validation, prompt generation
+  ideas.ts        # Ideas queue management, selection logic
+  builder.ts      # OpenCode SDK wrapper with event streaming
+  evaluator.ts    # Evaluation response parsing
+  loop.ts         # Main autonomous loop
+
+tests/
+  config.test.ts    # Config module tests
+  state.test.ts     # State persistence tests
+  plan.test.ts      # Plan parsing tests
+  ideas.test.ts     # Ideas queue tests
+  evaluator.test.ts # Evaluation parsing tests
 ```
 
 ## Code Style Guidelines
 
 ### Imports
 
-1. Standard library import always first: `const std = @import("std");`
-2. Extract commonly used type aliases after std import
-3. Internal module imports follow, grouped logically
+1. Node.js built-in imports first (with `node:` prefix)
+2. External package imports second
+3. Internal module imports last (with `.ts` extension)
 
-```zig
-const std = @import("std");
-const Allocator = std.mem.Allocator;
+```typescript
+import { existsSync } from "node:fs"
+import { join } from "node:path"
 
-const config = @import("config.zig");
-const Logger = @import("logger.zig").Logger;
+import { createOpencode } from "@opencode-ai/sdk"
+
+import { parseModel } from "./config.ts"
+import type { Config, BuildResult } from "./types.ts"
 ```
 
 ### Naming Conventions
 
 | Element | Convention | Example |
 |---------|------------|---------|
-| Files | snake_case | `config.zig`, `fs.zig` |
-| Types/Structs | PascalCase | `Logger`, `State`, `ExecutionResult` |
+| Files | kebab-case or camelCase | `config.ts`, `fs.ts` |
+| Types/Interfaces | PascalCase | `Logger`, `State`, `BuildResult` |
 | Functions | camelCase | `runPlanning`, `markTaskComplete` |
-| Constants | snake_case | `version`, `defaults` |
-| Module variables | snake_case | `shutdown_requested` |
+| Constants | SCREAMING_SNAKE_CASE or camelCase | `DEFAULT_STATE`, `ENV_PREFIX` |
+| Variables | camelCase | `shutdownRequested` |
 
-### Struct Patterns
+### Class Patterns
 
-```zig
-pub const MyStruct = struct {
-    field: Type,
-    allocator: Allocator,
+```typescript
+export class MyClass {
+  private field: Type
+  private logger: Logger
 
-    /// Initialize - returns struct value
-    pub fn init(allocator: Allocator) MyStruct {
-        return MyStruct{
-            .field = value,
-            .allocator = allocator,
-        };
-    }
+  constructor(config: Config, logger: Logger) {
+    this.field = value
+    this.logger = logger
+  }
 
-    /// Deinit - takes pointer for cleanup
-    pub fn deinit(self: *MyStruct) void {
-        // cleanup
-    }
+  /** Initialize async resources */
+  async init(): Promise<void> {
+    // async initialization
+  }
 
-    /// Methods that mutate take pointer
-    pub fn mutate(self: *MyStruct) void {
-        self.field = new_value;
-    }
+  /** Cleanup resources */
+  async shutdown(): Promise<void> {
+    // cleanup
+  }
 
-    /// Read-only methods take value
-    pub fn getValue(self: MyStruct) Type {
-        return self.field;
-    }
-};
+  /** Public method */
+  async doSomething(): Promise<Result> {
+    return result
+  }
+
+  /** Private helper */
+  private helperMethod(): void {
+    // internal logic
+  }
+}
 ```
 
 ### Error Handling
 
-- Define custom error sets as enums: `pub const ParseError = error{ InvalidArg, MissingValue };`
-- Use `try` for error propagation
-- Use `catch` with labeled blocks for explicit handling
-- Use `errdefer` for cleanup on error paths
+- Use try/catch for async error handling
+- Throw descriptive Error objects
+- Use optional chaining and nullish coalescing for safe access
 
-```zig
-const result = fsutil.readFile(path, allocator) catch |err| {
-    if (err == error.FileNotFound) {
-        return null;
-    }
-    return err;
-};
+```typescript
+try {
+  const result = await someAsyncOperation()
+  return result
+} catch (err) {
+  logger.logError(`Operation failed: ${err}`)
+  throw err
+}
+
+// Safe access patterns
+const value = obj?.nested?.property ?? defaultValue
+const item = array[index]
+if (!item) return null
 ```
 
-### Memory Management
+### Type Safety
 
-- Functions accept `Allocator` parameter when allocation is needed
-- Use `defer` for cleanup: `defer allocator.free(content);`
-- Use `errdefer` for cleanup that should only run on error
+- Prefer `interface` for object shapes
+- Use `type` for unions and mapped types
+- Avoid `any`, use `unknown` when type is truly unknown
+- Use proper null checks instead of non-null assertions (`!`)
 
-```zig
-pub fn process(allocator: Allocator) ![]u8 {
-    const data = try allocator.alloc(u8, 1024);
-    errdefer allocator.free(data);  // Only frees if error occurs
+```typescript
+// Good: Proper null check
+const task = tasks[0]
+if (!task) return null
 
-    // ... work with data ...
-
-    return data;  // Caller owns memory
-}
+// Avoid: Non-null assertion
+const task = tasks[0]!  // biome will warn
 ```
 
 ### Documentation
 
-- File-level doc comments: `//!` at top of file
-- Public API doc comments: `///` before declarations
-- Inline comments: `//`
+- Use JSDoc comments for public APIs
+- File-level comments describe the module purpose
 
-```zig
-//! Module description goes here.
-//! Additional context about the module.
+```typescript
+/**
+ * Module description goes here.
+ */
 
-/// Describe what this function does.
-/// Explain parameters and return value.
-pub fn myFunction() void {}
+/**
+ * Describe what this function does.
+ * @param config - Configuration options
+ * @returns The result of the operation
+ */
+export function myFunction(config: Config): Result {
+  // implementation
+}
 ```
 
 ### Testing
 
-Tests go at the bottom of each file, separated by a comment block:
+Tests are in separate files in the `tests/` directory:
 
-```zig
-// ============================================================================
-// Tests
-// ============================================================================
+```typescript
+import { describe, expect, test, beforeEach, afterEach } from "bun:test"
+import { myFunction } from "../src/module.ts"
 
-test "descriptive test name" {
-    const allocator = std.testing.allocator;
-
+describe("module", () => {
+  beforeEach(() => {
     // Setup
-    const result = try myFunction(allocator);
-    defer allocator.free(result);
+  })
 
-    // Assertions
-    try std.testing.expectEqual(expected, result);
-    try std.testing.expectEqualStrings("expected", actual);
-    try std.testing.expect(condition);
-    try std.testing.expectError(error.Expected, errorFn());
+  afterEach(() => {
+    // Cleanup
+  })
+
+  describe("myFunction", () => {
+    test("does something correctly", () => {
+      const result = myFunction(input)
+      expect(result).toBe(expected)
+    })
+
+    test("handles edge case", () => {
+      expect(() => myFunction(badInput)).toThrow()
+    })
+  })
+})
+```
+
+## Configuration
+
+### Config Priority (lowest to highest)
+
+1. Defaults (hardcoded)
+2. `opencoder.json` in project directory
+3. Environment variables (`OPENCODER_*`)
+4. CLI arguments
+
+### Environment Variables
+
+```bash
+OPENCODER_PLANNING_MODEL=anthropic/claude-sonnet-4
+OPENCODER_BUILD_MODEL=anthropic/claude-sonnet-4
+OPENCODER_VERBOSE=true
+OPENCODER_MAX_RETRIES=3
+OPENCODER_BACKOFF_BASE=10
+OPENCODER_LOG_RETENTION=30
+OPENCODER_TASK_PAUSE_SECONDS=2
+```
+
+### Config File (opencoder.json)
+
+```json
+{
+  "planningModel": "anthropic/claude-sonnet-4",
+  "buildModel": "anthropic/claude-sonnet-4",
+  "verbose": false,
+  "maxRetries": 3,
+  "taskPauseSeconds": 2
 }
 ```
 
-### String Handling
+## CLI Usage
 
-- Multi-line strings use `\\` syntax
-- Buffer formatting with `std.fmt.bufPrint`
-- Dynamic strings with `std.ArrayListUnmanaged(u8)`
+```bash
+# Basic usage with model
+opencoder --model anthropic/claude-sonnet-4
 
-```zig
-// Fixed buffer formatting
-var buf: [64]u8 = undefined;
-const msg = std.fmt.bufPrint(&buf, "Value: {d}", .{value}) catch "fallback";
+# With project directory and hint
+opencoder -m anthropic/claude-sonnet-4 -p ./myproject "focus on tests"
 
-// Dynamic string building
-var list = std.ArrayListUnmanaged(u8){};
-defer list.deinit(allocator);
-try list.appendSlice(allocator, "hello");
-```
+# Different models for planning and build
+opencoder -P anthropic/claude-opus-4 -B anthropic/claude-sonnet-4
 
-### Enum Patterns
-
-Use `StaticStringMap` for string-to-enum conversion:
-
-```zig
-pub const Phase = enum {
-    planning,
-    execution,
-
-    pub fn fromString(str: []const u8) ?Phase {
-        const map = std.StaticStringMap(Phase).initComptime(.{
-            .{ "planning", .planning },
-            .{ "execution", .execution },
-        });
-        return map.get(str);
-    }
-
-    pub fn toString(self: Phase) []const u8 {
-        return switch (self) {
-            .planning => "planning",
-            .execution => "execution",
-        };
-    }
-};
+# Verbose output
+opencoder -m anthropic/claude-sonnet-4 -v
 ```
 
 ## Ideas Queue Feature
 
-Opencoder includes an **ideas queue system** that allows users to provide specific tasks for the autonomous loop to work on. This is implemented in `src/ideas.zig`.
+Opencoder includes an **ideas queue system** that allows users to provide specific tasks for the autonomous loop to work on.
 
 ### How It Works
 
 1. **Ideas Directory**: `.opencoder/ideas/` - Users place `.md` files here
-2. **Planning Integration**: Before each planning cycle, `loop.zig` checks for ideas
+2. **Planning Integration**: Before each planning cycle, the loop checks for ideas
 3. **Selection Logic**:
    - **1 idea**: Used directly (no AI selection call)
    - **2+ ideas**: AI evaluates all and picks the simplest/quick-win considering dependencies
-4. **Execution**: Selected idea is deleted, plan is created from idea content
+4. **Build**: Selected idea is deleted, plan is created from idea content
 5. **Fallback**: When ideas are exhausted, returns to autonomous planning
 
-### Key Files
+### Key Modules
 
-- **`ideas.zig`**: Core module with `Idea` struct, `loadAllIdeas()`, `formatIdeasForSelection()`
-- **`plan.zig`**: Added `generateIdeaSelectionPrompt()` and `generateIdeaPlanningPrompt()`
-- **`executor.zig`**: Added `runIdeaSelection()` and `runIdeaPlanning()` methods
-- **`loop.zig`**: Integrated ideas check before planning phase
-- **`fs.zig`**: Added `ideas_dir` to `Paths` struct
+- **`ideas.ts`**: Core module with `Idea` interface, `loadAllIdeas()`, `formatIdeasForSelection()`
+- **`plan.ts`**: Contains `generateIdeaSelectionPrompt()` and `generateIdeaPlanningPrompt()`
+- **`builder.ts`**: Has `runIdeaSelection()` and `runIdeaPlanning()` methods
+- **`loop.ts`**: Integrates ideas check before planning phase
 
 ### Selection Criteria
 
@@ -306,16 +339,13 @@ Steps:
 ### Testing Ideas Feature
 
 ```bash
-# Test ideas.zig module
-zig test src/ideas.zig
-
-# Test plan.zig with new prompt functions
-zig test src/plan.zig
+# Run ideas module tests
+bun test tests/ideas.test.ts
 
 # Test full integration
 mkdir -p test-project/.opencoder/ideas
-echo "Test idea content" > test-project/.opencoder/ideas/test.md
-./zig-out/bin/opencoder --provider opencode -p test-project
+echo "# Test idea" > test-project/.opencoder/ideas/test.md
+bun run dev -- -m anthropic/claude-sonnet-4 -p test-project
 ```
 
 ### Implementation Notes
@@ -324,13 +354,20 @@ echo "Test idea content" > test-project/.opencoder/ideas/test.md
 - Idea files are **deleted before planning** (prevents retry loops)
 - Empty/invalid ideas are **automatically cleaned up**
 - No naming conventions required - any `.md` file works
-- **Memory safe** - All allocations properly tracked and freed
+
+## Three-Phase Autonomous Loop
+
+1. **Planning Phase**: Generate a development plan (checks ideas queue first)
+2. **Build Phase**: Build tasks from the plan one by one
+3. **Evaluation Phase**: AI evaluates if cycle is complete (COMPLETE/NEEDS_WORK)
+
+State is persisted to `.opencoder/state.json` after each phase for resumability.
 
 ## CI Pipeline
 
-The GitHub Actions CI (`.github/workflows/ci.yml`) runs:
+The GitHub Actions CI (`.github/workflows/ci.yml`) should run:
 1. Build on Ubuntu and macOS
-2. Run all unit tests
-3. Check code formatting with `zig fmt --check src/`
+2. Run all unit tests with `bun test`
+3. Check code formatting with `bunx biome check src/`
 
-Always ensure `zig fmt --check src/` passes before committing.
+Always ensure `bunx biome check src/` passes before committing.

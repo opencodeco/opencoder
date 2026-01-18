@@ -1,0 +1,9 @@
+{
+  "planningModel": "anthropic/claude-sonnet-4",
+  "executionModel": "anthropic/claude-sonnet-4",
+  "verbose": false,
+  "maxRetries": 3,
+  "backoffBase": 10,
+  "logRetention": 30,
+  "taskPauseSeconds": 2
+}
