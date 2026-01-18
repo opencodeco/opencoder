@@ -1,7 +1,7 @@
 PREFIX ?= /usr/local
 VERSION ?= 1.0.0
 
-.PHONY: all dev test test-coverage test-coverage-report lint format clean install build-linux-x64 build-darwin-arm64 build-windows build-all
+.PHONY: all dev test test-coverage test-coverage-report test-coverage-check lint format clean install build-linux-x64 build-darwin-arm64 build-windows build-all
 
 all:
 	bun build --compile --minify --sourcemap \
@@ -19,6 +19,12 @@ test-coverage:
 
 test-coverage-report:
 	bun test --coverage --coverage-reporter=lcov
+
+test-coverage-check:
+	@echo "Generating coverage report..."
+	@bun test --coverage --coverage-reporter=text 2>&1 | grep -A 100 "File" || true
+	@echo ""
+	@echo "Coverage analysis complete. Check the coverage/ directory for detailed reports."
 
 lint:
 	bunx biome check src/ tests/
