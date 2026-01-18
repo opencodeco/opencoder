@@ -1,8 +1,12 @@
 import { describe, expect, it } from "bun:test"
 import { homedir } from "node:os"
 import { join } from "node:path"
-// @ts-expect-error - paths.mjs is a JavaScript module without type declarations
-import { AGENTS_TARGET_DIR, getAgentsSourceDir, getPackageRoot } from "../src/paths.mjs"
+import {
+	AGENTS_TARGET_DIR,
+	getAgentsSourceDir,
+	getErrorMessage,
+	getPackageRoot,
+} from "../src/paths.mjs"
 
 describe("paths.mjs exports", () => {
 	describe("getPackageRoot", () => {
@@ -92,6 +96,74 @@ describe("paths.mjs exports", () => {
 		it("should be an absolute path", () => {
 			// Absolute paths start with / on Unix or drive letter on Windows
 			expect(AGENTS_TARGET_DIR.startsWith("/") || /^[A-Z]:/i.test(AGENTS_TARGET_DIR)).toBe(true)
+		})
+	})
+
+	describe("getErrorMessage", () => {
+		const testFile = "test-agent.md"
+		const testTargetPath = "/home/user/.config/opencode/agents/test-agent.md"
+
+		it("should return permission message for EACCES error", () => {
+			const error = Object.assign(new Error("EACCES"), { code: "EACCES" })
+			const result = getErrorMessage(error, testFile, testTargetPath)
+			expect(result).toBe(
+				"Permission denied. Check write permissions for /home/user/.config/opencode/agents",
+			)
+		})
+
+		it("should return disk full message for ENOSPC error", () => {
+			const error = Object.assign(new Error("ENOSPC"), { code: "ENOSPC" })
+			const result = getErrorMessage(error, testFile, testTargetPath)
+			expect(result).toBe("Disk full. Free up space and try again")
+		})
+
+		it("should return source file not found message for ENOENT error", () => {
+			const error = Object.assign(new Error("ENOENT"), { code: "ENOENT" })
+			const result = getErrorMessage(error, testFile, testTargetPath)
+			expect(result).toBe(`Source file not found: ${testFile}`)
+		})
+
+		it("should return read-only filesystem message for EROFS error", () => {
+			const error = Object.assign(new Error("EROFS"), { code: "EROFS" })
+			const result = getErrorMessage(error, testFile, testTargetPath)
+			expect(result).toBe("Read-only file system. Cannot write to target directory")
+		})
+
+		it("should return too many open files message for EMFILE error", () => {
+			const error = Object.assign(new Error("EMFILE"), { code: "EMFILE" })
+			const result = getErrorMessage(error, testFile, testTargetPath)
+			expect(result).toBe("Too many open files. Close some applications and try again")
+		})
+
+		it("should return too many open files message for ENFILE error", () => {
+			const error = Object.assign(new Error("ENFILE"), { code: "ENFILE" })
+			const result = getErrorMessage(error, testFile, testTargetPath)
+			expect(result).toBe("Too many open files. Close some applications and try again")
+		})
+
+		it("should return error message for unknown error codes", () => {
+			const error = Object.assign(new Error("Something went wrong"), { code: "UNKNOWN" })
+			const result = getErrorMessage(error, testFile, testTargetPath)
+			expect(result).toBe("Something went wrong")
+		})
+
+		it("should return 'Unknown error' when error has no message or known code", () => {
+			const error = Object.assign(new Error(""), { code: "UNKNOWN" })
+			const result = getErrorMessage(error, testFile, testTargetPath)
+			expect(result).toBe("Unknown error")
+		})
+
+		it("should handle error without code property", () => {
+			const error = new Error("Generic error")
+			const result = getErrorMessage(error, testFile, testTargetPath)
+			expect(result).toBe("Generic error")
+		})
+
+		it("should use dirname of targetPath for EACCES message", () => {
+			const error = Object.assign(new Error("EACCES"), { code: "EACCES" })
+			const deepPath = "/very/deep/nested/path/file.md"
+			const result = getErrorMessage(error, "file.md", deepPath)
+			expect(result).toBe("Permission denied. Check write permissions for /very/deep/nested/path")
 		})
 	})
 })
