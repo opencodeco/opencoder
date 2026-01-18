@@ -2,7 +2,7 @@
  * Main autonomous loop
  *
  * Three-phase cycle:
- * 1. Planning - Generate a development plan
+ * 1. Plan - Generate a development plan
  * 2. Build - Build tasks from the plan
  * 3. Evaluation - Evaluate if the cycle is complete
  */
@@ -79,8 +79,8 @@ export async function runLoop(config: Config): Promise<void> {
 			try {
 				switch (state.phase) {
 					case "init":
-					case "planning":
-						await runPlanningPhase(state, builder, paths, logger, config)
+					case "plan":
+						await runPlanPhase(state, builder, paths, logger, config)
 						break
 
 					case "build":
@@ -125,7 +125,7 @@ function logStartupInfo(logger: Logger, config: Config): void {
 
 	logger.say(`\nOpencoder v${version}`)
 	logger.say(`Project: ${config.projectDir}`)
-	logger.say(`Planning model: ${config.planningModel}`)
+	logger.say(`Plan model: ${config.planModel}`)
 	logger.say(`Build model: ${config.buildModel}`)
 
 	if (config.userHint) {
@@ -161,9 +161,9 @@ function setupSignalHandlers(logger: Logger, _builder: Builder): void {
 }
 
 /**
- * Run the planning phase
+ * Run the plan phase
  */
-async function runPlanningPhase(
+async function runPlanPhase(
 	state: RuntimeState,
 	builder: Builder,
 	paths: Paths,
@@ -184,7 +184,7 @@ async function runPlanningPhase(
 			if (!idea) throw new Error("Unexpected: ideas[0] is undefined")
 			logger.say(`Using idea: ${idea.filename}`)
 			removeIdeaByIndex(ideas, 0)
-			planContent = await builder.runIdeaPlanning(idea.content, idea.filename, state.cycle)
+			planContent = await builder.runIdeaPlan(idea.content, idea.filename, state.cycle)
 		} else {
 			// Multiple ideas - let AI select
 			const formatted = formatIdeasForSelection(ideas)
@@ -196,23 +196,23 @@ async function runPlanningPhase(
 				if (!idea) throw new Error("Unexpected: selected idea is undefined")
 				logger.success(`AI selected idea: ${idea.filename}`)
 				removeIdeaByIndex(ideas, selectedIndex)
-				planContent = await builder.runIdeaPlanning(idea.content, idea.filename, state.cycle)
+				planContent = await builder.runIdeaPlan(idea.content, idea.filename, state.cycle)
 			} else {
-				// Fallback to autonomous planning
-				logger.warn("Could not parse idea selection, falling back to autonomous planning")
-				planContent = await builder.runPlanning(state.cycle, config.userHint)
+				// Fallback to autonomous plan
+				logger.warn("Could not parse idea selection, falling back to autonomous plan")
+				planContent = await builder.runPlan(state.cycle, config.userHint)
 			}
 		}
 	} else {
-		// No ideas - autonomous planning
-		planContent = await builder.runPlanning(state.cycle, config.userHint)
+		// No ideas - autonomous plan
+		planContent = await builder.runPlan(state.cycle, config.userHint)
 	}
 
 	// Validate the plan
 	const validation = validatePlan(planContent)
 	if (!validation.valid) {
 		logger.logError(`Invalid plan: ${validation.error}`)
-		// Stay in planning phase to retry
+		// Stay in plan phase to retry
 		return
 	}
 
@@ -242,8 +242,8 @@ async function runBuildPhase(
 	// Read current plan
 	const planContent = await readFileOrNull(paths.currentPlan)
 	if (!planContent) {
-		logger.logError("No plan file found, returning to planning phase")
-		state.phase = "planning"
+		logger.logError("No plan file found, returning to plan phase")
+		state.phase = "plan"
 		return
 	}
 
@@ -314,7 +314,7 @@ async function runEvaluationPhase(
 	const planContent = await readFileOrNull(paths.currentPlan)
 	if (!planContent) {
 		logger.logError("No plan file found for evaluation")
-		state.phase = "planning"
+		state.phase = "plan"
 		return
 	}
 
@@ -334,7 +334,7 @@ async function runEvaluationPhase(
 
 		// Start new cycle
 		state.cycle++
-		state.phase = "planning"
+		state.phase = "plan"
 		state.taskIndex = 0
 		state.totalTasks = 0
 		state.currentTaskNum = 0

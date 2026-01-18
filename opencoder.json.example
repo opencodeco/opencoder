@@ -1,6 +1,6 @@
 {
-  "planningModel": "anthropic/claude-sonnet-4",
-  "executionModel": "anthropic/claude-sonnet-4",
+  "planModel": "anthropic/claude-sonnet-4",
+  "buildModel": "anthropic/claude-sonnet-4",
   "verbose": false,
   "maxRetries": 3,
   "backoffBase": 10,

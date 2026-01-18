@@ -14,39 +14,40 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            target: x86_64-linux
-            artifact: opencoder-linux-amd64
+            target: bun-linux-x64
+            artifact: opencoder-linux-x64
           - os: ubuntu-latest
-            target: aarch64-linux
+            target: bun-linux-arm64
             artifact: opencoder-linux-arm64
           - os: macos-latest
-            target: x86_64-macos
-            artifact: opencoder-macos-amd64
+            target: bun-darwin-x64
+            artifact: opencoder-darwin-x64
           - os: macos-latest
-            target: aarch64-macos
-            artifact: opencoder-macos-arm64
+            target: bun-darwin-arm64
+            artifact: opencoder-darwin-arm64
     runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Zig
-        uses: mlugg/setup-zig@v2
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          version: 0.15.2
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
 
       - name: Build release
-        run: zig build -Doptimize=ReleaseSafe -Dtarget=${{ matrix.target }}
+        run: bun build --compile --minify --target=${{ matrix.target }} src/index.ts --outfile ${{ matrix.artifact }}
 
-      - name: Rename binary
-        run: mv zig-out/bin/opencoder ${{ matrix.artifact }}
-
-      - name: Strip binary
-        if: matrix.os == 'ubuntu-latest'
-        run: strip ${{ matrix.artifact }}
-
-      - name: Calculate checksum
+      - name: Calculate checksum (Linux)
+        if: runner.os == 'Linux'
         run: sha256sum ${{ matrix.artifact }} > ${{ matrix.artifact }}.sha256
+
+      - name: Calculate checksum (macOS)
+        if: runner.os == 'macOS'
+        run: shasum -a 256 ${{ matrix.artifact }} > ${{ matrix.artifact }}.sha256
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -67,15 +68,16 @@ jobs:
           merge-multiple: true
 
       - name: Create checksums.txt
+        working-directory: artifacts
         run: cat *.sha256 > checksums.txt
 
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            opencoder-linux-amd64
-            opencoder-linux-arm64
-            opencoder-macos-amd64
-            opencoder-macos-arm64
-            checksums.txt
+            artifacts/opencoder-linux-x64
+            artifacts/opencoder-linux-arm64
+            artifacts/opencoder-darwin-x64
+            artifacts/opencoder-darwin-arm64
+            artifacts/checksums.txt
           generate_release_notes: true

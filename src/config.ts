@@ -14,7 +14,7 @@ import { resolve } from "node:path"
 import type { CliOptions, Config, ConfigFile } from "./types.ts"
 
 /** Default configuration values */
-const DEFAULTS: Omit<Config, "planningModel" | "buildModel" | "projectDir"> = {
+const DEFAULTS: Omit<Config, "planModel" | "buildModel" | "projectDir"> = {
 	verbose: false,
 	maxRetries: 3,
 	backoffBase: 10,
@@ -40,7 +40,7 @@ export async function loadConfig(cliOptions: CliOptions, hint?: string): Promise
 
 	// Merge CLI options
 	const cliConfig = {
-		planningModel: cliOptions.planningModel || cliOptions.model,
+		planModel: cliOptions.planModel || cliOptions.model,
 		buildModel: cliOptions.buildModel || cliOptions.model,
 		verbose: cliOptions.verbose,
 	}
@@ -49,7 +49,7 @@ export async function loadConfig(cliOptions: CliOptions, hint?: string): Promise
 	const config: Config = {
 		...DEFAULTS,
 		projectDir,
-		planningModel: "",
+		planModel: "",
 		buildModel: "",
 		...fileConfig,
 		...envConfig,
@@ -94,7 +94,7 @@ async function loadConfigFile(projectDir: string): Promise<Partial<Config>> {
 		const parsed = JSON.parse(content) as ConfigFile
 
 		return {
-			planningModel: parsed.planningModel,
+			planModel: parsed.planModel,
 			buildModel: parsed.buildModel,
 			verbose: parsed.verbose,
 			maxRetries: parsed.maxRetries,
@@ -114,8 +114,8 @@ async function loadConfigFile(projectDir: string): Promise<Partial<Config>> {
 function loadEnvConfig(): Partial<Config> {
 	const config: Partial<Config> = {}
 
-	const planningModel = process.env[`${ENV_PREFIX}PLANNING_MODEL`]
-	if (planningModel) config.planningModel = planningModel
+	const planModel = process.env[`${ENV_PREFIX}PLAN_MODEL`]
+	if (planModel) config.planModel = planModel
 
 	const buildModel = process.env[`${ENV_PREFIX}BUILD_MODEL`]
 	if (buildModel) config.buildModel = buildModel
@@ -154,9 +154,9 @@ function loadEnvConfig(): Partial<Config> {
  * Validate configuration has all required fields
  */
 function validateConfig(config: Config): void {
-	if (!config.planningModel) {
+	if (!config.planModel) {
 		throw new Error(
-			"Missing planning model. Provide via --model, --planning-model, opencoder.json, or OPENCODER_PLANNING_MODEL env var.",
+			"Missing plan model. Provide via --model, --plan-model, opencoder.json, or OPENCODER_PLAN_MODEL env var.",
 		)
 	}
 
@@ -167,9 +167,9 @@ function validateConfig(config: Config): void {
 	}
 
 	// Validate model format (should be provider/model)
-	if (!isValidModelFormat(config.planningModel)) {
+	if (!isValidModelFormat(config.planModel)) {
 		throw new Error(
-			`Invalid planning model format: ${config.planningModel}. Expected format: provider/model`,
+			`Invalid plan model format: ${config.planModel}. Expected format: provider/model`,
 		)
 	}
 

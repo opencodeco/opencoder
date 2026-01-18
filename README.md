@@ -8,8 +8,8 @@
 
 - **Autonomous Development Loop** - Continuously plans, builds, and evaluates without stopping
 - **OpenCode SDK Integration** - Direct SDK integration with real-time event streaming
-- **Ideas Queue** - Drop markdown files in `.opencoder/ideas/` to prioritize specific tasks before autonomous planning
-- **Two-Model Architecture** - Uses a high-capability model for planning and a faster model for building
+- **Ideas Queue** - Drop markdown files in `.opencoder/ideas/` to prioritize specific tasks before autonomous plan
+- **Two-Model Architecture** - Uses a high-capability model for plan and a faster model for building
 - **Live Output Streaming** - Real-time display of AI thinking, tool calls, and results
 - **State Persistence** - Resumes from where it left off after interruptions (JSON format)
 - **Exponential Backoff** - Graceful retry logic for transient failures
@@ -57,7 +57,7 @@ Instead of interactive sessions where you guide the AI, OpenCoder creates an *au
 
 ### The Philosophy
 
-OpenCoder treats software development as an **infinite game**. There's always another test to write, another edge case to handle, another optimization to make. OpenCoder embraces this by never declaring "done"—it continuously cycles through planning, building, and evaluation until you tell it to stop.
+OpenCoder treats software development as an **infinite game**. There's always another test to write, another edge case to handle, another optimization to make. OpenCoder embraces this by never declaring "done"—it continuously cycles through plan, build, and evaluation until you tell it to stop.
 
 ## Installation
 
@@ -111,10 +111,10 @@ opencoder --model anthropic/claude-sonnet-4
 opencoder -m anthropic/claude-sonnet-4 -p ./myproject "build a REST API"
 ```
 
-### With Different Planning and Build Models
+### With Different Plan and Build Models
 
 ```bash
-# Use a more capable model for planning, faster model for building
+# Use a more capable model for plan, faster model for building
 opencoder -P anthropic/claude-opus-4 -B anthropic/claude-sonnet-4
 ```
 
@@ -122,8 +122,8 @@ opencoder -P anthropic/claude-opus-4 -B anthropic/claude-sonnet-4
 
 | Flag | Description |
 |------|-------------|
-| `-m, --model MODEL` | Model for both planning and build (provider/model format) |
-| `-P, --planning-model MODEL` | Model for planning/evaluation phases |
+| `-m, --model MODEL` | Model for both plan and build (provider/model format) |
+| `-P, --plan-model MODEL` | Model for plan/evaluation phases |
 | `-B, --build-model MODEL` | Model for build phase |
 | `-p, --project DIR` | Project directory (default: current directory) |
 | `-v, --verbose` | Enable verbose logging |
@@ -155,7 +155,7 @@ OpenCoder implements an **agentic development loop** with three phases:
                     (start new cycle)
 ```
 
-1. **Planning Phase** - Analyzes the project and creates a markdown checklist with 3-7 actionable tasks
+1. **Plan Phase** - Analyzes the project and creates a markdown checklist with 3-7 actionable tasks
 2. **Build Phase** - Works through each task sequentially, making code changes
 3. **Evaluation Phase** - Reviews completed work and decides whether to start a new cycle (COMPLETE/NEEDS_WORK)
 
@@ -169,7 +169,7 @@ Create an `opencoder.json` in your project directory:
 
 ```json
 {
-  "planningModel": "anthropic/claude-sonnet-4",
+  "planModel": "anthropic/claude-sonnet-4",
   "buildModel": "anthropic/claude-sonnet-4",
   "verbose": false,
   "maxRetries": 3,
@@ -182,7 +182,7 @@ Create an `opencoder.json` in your project directory:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENCODER_PROJECT_DIR` | `$PWD` | Default project directory |
-| `OPENCODER_PLANNING_MODEL` | - | Model for planning phase |
+| `OPENCODER_PLAN_MODEL` | - | Model for plan phase |
 | `OPENCODER_BUILD_MODEL` | - | Model for build phase |
 | `OPENCODER_VERBOSE` | `false` | Enable verbose logging |
 | `OPENCODER_MAX_RETRIES` | `3` | Max retries per operation |
@@ -272,7 +272,7 @@ opencoder -m anthropic/claude-sonnet-4
    - **1 idea**: Uses it directly (no extra API call)
    - **2+ ideas**: AI evaluates all and picks the simplest/quick-win, considering dependencies
 3. **Build** - Selected idea is deleted, plan is created specifically for it
-4. **Fallback** - When ideas are exhausted, returns to autonomous planning
+4. **Fallback** - When ideas are exhausted, returns to autonomous plan
 
 ### Selection Criteria
 

@@ -21,8 +21,8 @@ export async function run(): Promise<void> {
 		.version(VERSION)
 		.argument("[hint]", "Optional hint/instruction for the AI")
 		.option("-p, --project <dir>", "Project directory (default: current directory)")
-		.option("-m, --model <model>", "Model for both planning and build (provider/model format)")
-		.option("-P, --planning-model <model>", "Model for planning phase (provider/model format)")
+		.option("-m, --model <model>", "Model for both plan and build (provider/model format)")
+		.option("-P, --plan-model <model>", "Model for plan phase (provider/model format)")
 		.option("-B, --build-model <model>", "Model for build phase (provider/model format)")
 		.option("-v, --verbose", "Enable verbose logging")
 		.action(async (hint: string | undefined, opts: Record<string, unknown>) => {
@@ -30,7 +30,7 @@ export async function run(): Promise<void> {
 				const cliOptions: CliOptions = {
 					project: opts.project as string | undefined,
 					model: opts.model as string | undefined,
-					planningModel: opts.planningModel as string | undefined,
+					planModel: opts.planModel as string | undefined,
 					buildModel: opts.buildModel as string | undefined,
 					verbose: opts.verbose as boolean | undefined,
 				}
@@ -49,33 +49,33 @@ export async function run(): Promise<void> {
 		`
 Examples:
   $ opencoder --model anthropic/claude-sonnet-4
-    Run with Claude Sonnet for both planning and build
+    Run with Claude Sonnet for both plan and build
 
   $ opencoder -m anthropic/claude-sonnet-4 "build a REST API"
     Run with a specific hint/instruction
 
   $ opencoder -P anthropic/claude-opus-4 -B anthropic/claude-sonnet-4
-    Use different models for planning and build
+    Use different models for plan and build
 
   $ opencoder -m openai/gpt-4o -p ./myproject -v
     Run with verbose logging in a specific directory
 
 Options:
     -p, --project <dir>         Project directory (default: current directory)
-    -m, --model <model>         Model for both planning and build
-    -P, --planning-model        Model for planning phase
+    -m, --model <model>         Model for both plan and build
+    -P, --plan-model            Model for plan phase
     -B, --build-model           Model for build phase
     -v, --verbose               Enable verbose logging
 
 Environment variables:
-    OPENCODER_PLANNING_MODEL    Default planning model
+    OPENCODER_PLAN_MODEL        Default plan model
     OPENCODER_BUILD_MODEL       Default build model
     OPENCODER_VERBOSE           Enable verbose logging (true/1)
     OPENCODER_PROJECT_DIR       Default project directory
 
 Config file (opencoder.json):
     {
-      "planningModel": "anthropic/claude-sonnet-4",
+      "planModel": "anthropic/claude-sonnet-4",
       "buildModel": "anthropic/claude-sonnet-4",
       "verbose": false
     }

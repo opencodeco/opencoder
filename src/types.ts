@@ -3,19 +3,19 @@
  */
 
 /** Phases in the autonomous loop */
-export type Phase = "init" | "planning" | "build" | "evaluation"
+export type Phase = "init" | "plan" | "build" | "evaluation"
 
 /** Application configuration */
 export interface Config {
-	/** Model for planning and evaluation phases (provider/model format) */
-	planningModel: string
+	/** Model for plan and evaluation phases (provider/model format) */
+	planModel: string
 	/** Model for build phase (provider/model format) */
 	buildModel: string
 	/** Project directory to operate in */
 	projectDir: string
 	/** Enable verbose logging */
 	verbose: boolean
-	/** Optional user hint/instruction for planning */
+	/** Optional user hint/instruction for plan */
 	userHint?: string
 	/** Maximum retries per operation */
 	maxRetries: number
@@ -111,7 +111,7 @@ export interface ModelSpec {
 
 /** Configuration file schema (opencoder.json) */
 export interface ConfigFile {
-	planningModel?: string
+	planModel?: string
 	buildModel?: string
 	verbose?: boolean
 	maxRetries?: number
@@ -124,7 +124,7 @@ export interface ConfigFile {
 export interface CliOptions {
 	project?: string
 	model?: string
-	planningModel?: string
+	planModel?: string
 	buildModel?: string
 	verbose?: boolean
 }

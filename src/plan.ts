@@ -93,9 +93,9 @@ export function validatePlan(planContent: string): { valid: boolean; error?: str
 }
 
 /**
- * Generate the planning prompt for autonomous operation
+ * Generate the plan prompt for autonomous operation
  */
-export function generatePlanningPrompt(cycle: number, hint?: string): string {
+export function generatePlanPrompt(cycle: number, hint?: string): string {
 	const hintSection = hint ? `\n\nUser hint for this cycle: ${hint}` : ""
 
 	return `You are an autonomous development agent working on a software project. This is cycle ${cycle} of continuous development.
@@ -246,9 +246,9 @@ Select the best idea now.`
 }
 
 /**
- * Generate the idea planning prompt (when planning from a specific idea)
+ * Generate the idea plan prompt (when planning from a specific idea)
  */
-export function generateIdeaPlanningPrompt(
+export function generateIdeaPlanPrompt(
 	ideaContent: string,
 	ideaFilename: string,
 	cycle: number,

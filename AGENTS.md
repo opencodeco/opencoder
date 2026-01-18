@@ -258,7 +258,7 @@ describe("module", () => {
 ### Environment Variables
 
 ```bash
-OPENCODER_PLANNING_MODEL=anthropic/claude-sonnet-4
+OPENCODER_PLAN_MODEL=anthropic/claude-sonnet-4
 OPENCODER_BUILD_MODEL=anthropic/claude-sonnet-4
 OPENCODER_VERBOSE=true
 OPENCODER_MAX_RETRIES=3
@@ -271,7 +271,7 @@ OPENCODER_TASK_PAUSE_SECONDS=2
 
 ```json
 {
-  "planningModel": "anthropic/claude-sonnet-4",
+  "planModel": "anthropic/claude-sonnet-4",
   "buildModel": "anthropic/claude-sonnet-4",
   "verbose": false,
   "maxRetries": 3,
@@ -288,7 +288,7 @@ opencoder --model anthropic/claude-sonnet-4
 # With project directory and hint
 opencoder -m anthropic/claude-sonnet-4 -p ./myproject "focus on tests"
 
-# Different models for planning and build
+# Different models for plan and build
 opencoder -P anthropic/claude-opus-4 -B anthropic/claude-sonnet-4
 
 # Verbose output
@@ -302,19 +302,19 @@ Opencoder includes an **ideas queue system** that allows users to provide specif
 ### How It Works
 
 1. **Ideas Directory**: `.opencoder/ideas/` - Users place `.md` files here
-2. **Planning Integration**: Before each planning cycle, the loop checks for ideas
+2. **Plan Integration**: Before each plan cycle, the loop checks for ideas
 3. **Selection Logic**:
    - **1 idea**: Used directly (no AI selection call)
    - **2+ ideas**: AI evaluates all and picks the simplest/quick-win considering dependencies
 4. **Build**: Selected idea is deleted, plan is created from idea content
-5. **Fallback**: When ideas are exhausted, returns to autonomous planning
+5. **Fallback**: When ideas are exhausted, returns to autonomous plan
 
 ### Key Modules
 
 - **`ideas.ts`**: Core module with `Idea` interface, `loadAllIdeas()`, `formatIdeasForSelection()`
-- **`plan.ts`**: Contains `generateIdeaSelectionPrompt()` and `generateIdeaPlanningPrompt()`
-- **`builder.ts`**: Has `runIdeaSelection()` and `runIdeaPlanning()` methods
-- **`loop.ts`**: Integrates ideas check before planning phase
+- **`plan.ts`**: Contains `generateIdeaSelectionPrompt()` and `generateIdeaPlanPrompt()`
+- **`builder.ts`**: Has `runIdeaSelection()` and `runIdeaPlan()` methods
+- **`loop.ts`**: Integrates ideas check before plan phase
 
 ### Selection Criteria
 
@@ -351,7 +351,7 @@ bun run dev -- -m anthropic/claude-sonnet-4 -p test-project
 ### Implementation Notes
 
 - Ideas take **full precedence** over user hints
-- Idea files are **deleted before planning** (prevents retry loops)
+- Idea files are **deleted before plan** (prevents retry loops)
 - Empty/invalid ideas are **automatically cleaned up**
 - No naming conventions required - any `.md` file works
 

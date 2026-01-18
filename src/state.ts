@@ -75,7 +75,7 @@ function toRuntimeState(state: State): RuntimeState {
  * Validate phase string
  */
 function validatePhase(phase: unknown): Phase | null {
-	const validPhases: Phase[] = ["init", "planning", "build", "evaluation"]
+	const validPhases: Phase[] = ["init", "plan", "build", "evaluation"]
 	if (typeof phase === "string" && validPhases.includes(phase as Phase)) {
 		return phase as Phase
 	}
@@ -98,7 +98,7 @@ export function resetState(): RuntimeState {
 export function newCycleState(currentCycle: number): Partial<RuntimeState> {
 	return {
 		cycle: currentCycle + 1,
-		phase: "planning",
+		phase: "plan",
 		taskIndex: 0,
 		sessionId: undefined,
 		totalTasks: 0,

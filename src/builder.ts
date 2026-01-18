@@ -8,9 +8,9 @@ import type { Logger } from "./logger.ts"
 import {
 	extractPlanFromResponse,
 	generateEvaluationPrompt,
-	generateIdeaPlanningPrompt,
+	generateIdeaPlanPrompt,
 	generateIdeaSelectionPrompt,
-	generatePlanningPrompt,
+	generatePlanPrompt,
 	generateTaskPrompt,
 } from "./plan.ts"
 import type { BuildResult, Config } from "./types.ts"
@@ -68,12 +68,12 @@ export class Builder {
 	}
 
 	/**
-	 * Run the planning phase
+	 * Run the plan phase
 	 */
-	async runPlanning(cycle: number, hint?: string): Promise<string> {
-		this.logger.header(`CYCLE ${cycle} - PLANNING PHASE`)
+	async runPlan(cycle: number, hint?: string): Promise<string> {
+		this.logger.header(`CYCLE ${cycle} - PLAN PHASE`)
 
-		const prompt = generatePlanningPrompt(cycle, hint)
+		const prompt = generatePlanPrompt(cycle, hint)
 
 		// Create a new session for this cycle
 		const session = await this.client.session.create({
@@ -87,8 +87,8 @@ export class Builder {
 		this.sessionId = session.data.id
 		this.logger.logVerbose(`Created session: ${this.sessionId}`)
 
-		// Send the planning prompt
-		const result = await this.sendPrompt(prompt, this.config.planningModel, "Planning")
+		// Send the plan prompt
+		const result = await this.sendPrompt(prompt, this.config.planModel, "Planning")
 
 		return extractPlanFromResponse(result)
 	}
@@ -131,7 +131,7 @@ export class Builder {
 
 		const prompt = generateEvaluationPrompt(cycle, planContent)
 
-		return await this.sendPrompt(prompt, this.config.planningModel, "Evaluating")
+		return await this.sendPrompt(prompt, this.config.planModel, "Evaluating")
 	}
 
 	/**
@@ -156,7 +156,7 @@ export class Builder {
 			const result = await this.sendPromptToSession(
 				tempSessionId,
 				prompt,
-				this.config.planningModel,
+				this.config.planModel,
 				"Selecting",
 			)
 			return result
@@ -171,13 +171,13 @@ export class Builder {
 	}
 
 	/**
-	 * Run planning for a specific idea
+	 * Run plan for a specific idea
 	 */
-	async runIdeaPlanning(ideaContent: string, ideaFilename: string, cycle: number): Promise<string> {
-		this.logger.header(`CYCLE ${cycle} - IDEA PLANNING`)
+	async runIdeaPlan(ideaContent: string, ideaFilename: string, cycle: number): Promise<string> {
+		this.logger.header(`CYCLE ${cycle} - IDEA PLAN`)
 		this.logger.info(`Planning for: ${ideaFilename}`)
 
-		const prompt = generateIdeaPlanningPrompt(ideaContent, ideaFilename, cycle)
+		const prompt = generateIdeaPlanPrompt(ideaContent, ideaFilename, cycle)
 
 		// Create a new session for this cycle
 		const session = await this.client.session.create({
@@ -191,7 +191,7 @@ export class Builder {
 		this.sessionId = session.data.id
 		this.logger.logVerbose(`Created session: ${this.sessionId}`)
 
-		const result = await this.sendPrompt(prompt, this.config.planningModel, "Planning")
+		const result = await this.sendPrompt(prompt, this.config.planModel, "Planning")
 
 		return extractPlanFromResponse(result)
 	}

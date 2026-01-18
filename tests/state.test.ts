@@ -78,7 +78,7 @@ describe("state", () => {
 			const stateFile = join(TEST_DIR, "save-test.json")
 			const state = {
 				cycle: 3,
-				phase: "planning" as const,
+				phase: "plan" as const,
 				taskIndex: 1,
 				totalTasks: 5,
 				currentTaskNum: 1,
@@ -92,7 +92,7 @@ describe("state", () => {
 			const saved = JSON.parse(content)
 
 			expect(saved.cycle).toBe(3)
-			expect(saved.phase).toBe("planning")
+			expect(saved.phase).toBe("plan")
 			expect(saved.taskIndex).toBe(1)
 			expect(saved.lastUpdate).toBeTruthy()
 		})
@@ -111,11 +111,11 @@ describe("state", () => {
 	})
 
 	describe("newCycleState", () => {
-		test("increments cycle and resets to planning", () => {
+		test("increments cycle and resets to plan", () => {
 			const newState = newCycleState(5)
 
 			expect(newState.cycle).toBe(6)
-			expect(newState.phase).toBe("planning")
+			expect(newState.phase).toBe("plan")
 			expect(newState.taskIndex).toBe(0)
 			expect(newState.totalTasks).toBe(0)
 		})
