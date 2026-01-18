@@ -1,10 +1,10 @@
-# AGENTS.md - Opencoder Development Guide
+# AGENTS.md - OpenCoder Development Guide
 
 This file provides instructions for AI coding agents working in this repository.
 
 ## Project Overview
 
-Opencoder is a CLI application written in **TypeScript** that uses the OpenCode SDK to run a fully autonomous development loop. It creates plans and executes them continuously without stopping.
+OpenCoder is a CLI application written in **TypeScript** that uses the OpenCode SDK to run a fully autonomous development loop. It creates plans and executes them continuously without stopping.
 
 - **Language**: TypeScript
 - **Runtime**: Bun (1.0+ required)
@@ -88,6 +88,7 @@ src/
   builder.ts      # OpenCode SDK wrapper with event streaming
   evaluator.ts    # Evaluation response parsing
   loop.ts         # Main autonomous loop
+  git.ts          # Git operations (commit, push, change detection)
 
 tests/
   config.test.ts    # Config module tests
@@ -95,6 +96,7 @@ tests/
   plan.test.ts      # Plan parsing tests
   ideas.test.ts     # Ideas queue tests
   evaluator.test.ts # Evaluation parsing tests
+  git.test.ts       # Git operations tests
 ```
 
 ## Code Style Guidelines
@@ -265,6 +267,9 @@ OPENCODER_MAX_RETRIES=3
 OPENCODER_BACKOFF_BASE=10
 OPENCODER_LOG_RETENTION=30
 OPENCODER_TASK_PAUSE_SECONDS=2
+OPENCODER_AUTO_COMMIT=true
+OPENCODER_AUTO_PUSH=true
+OPENCODER_COMMIT_SIGNOFF=false
 ```
 
 ### Config File (.opencode/opencoder/config.json)
@@ -275,7 +280,10 @@ OPENCODER_TASK_PAUSE_SECONDS=2
   "buildModel": "anthropic/claude-sonnet-4",
   "verbose": false,
   "maxRetries": 3,
-  "taskPauseSeconds": 2
+  "taskPauseSeconds": 2,
+  "autoCommit": true,
+  "autoPush": true,
+  "commitSignoff": false
 }
 ```
 
@@ -293,11 +301,45 @@ opencoder -P anthropic/claude-opus-4 -B anthropic/claude-sonnet-4
 
 # Verbose output
 opencoder -m anthropic/claude-sonnet-4 -v
+
+# Disable automatic git operations
+opencoder -m anthropic/claude-sonnet-4 --no-auto-commit --no-auto-push
+
+# Enable commit signoff (DCO)
+opencoder -m anthropic/claude-sonnet-4 -s
 ```
+
+## Git Integration
+
+OpenCoder includes automatic git operations after tasks and cycles:
+
+### Features
+
+- **Auto-commit**: Automatically commits changes after each successful task
+- **Auto-push**: Automatically pushes commits after each completed cycle
+- **Commit signoff**: Adds `Signed-off-by` line for DCO compliance
+
+### Configuration
+
+| Option | CLI Flag | Env Var | Default |
+|--------|----------|---------|---------|
+| Auto-commit | `--no-auto-commit` | `OPENCODER_AUTO_COMMIT` | `true` |
+| Auto-push | `--no-auto-push` | `OPENCODER_AUTO_PUSH` | `true` |
+| Signoff | `-s, --signoff` | `OPENCODER_COMMIT_SIGNOFF` | `false` |
+
+### Commit Message Generation
+
+Commit messages are automatically generated based on task descriptions using conventional commit prefixes:
+
+- `fix:` - Bug fixes, resolving issues
+- `feat:` - New features, additions, implementations
+- `test:` - Test-related changes
+- `docs:` - Documentation updates
+- `refactor:` - Code refactoring, improvements
 
 ## Ideas Queue Feature
 
-Opencoder includes an **ideas queue system** that allows users to provide specific tasks for the autonomous loop to work on.
+OpenCoder includes an **ideas queue system** that allows users to provide specific tasks for the autonomous loop to work on.
 
 ### How It Works
 
@@ -351,7 +393,8 @@ bun run dev -- -m anthropic/claude-sonnet-4 -p test-project
 ### Implementation Notes
 
 - Ideas take **full precedence** over user hints
-- Idea files are **deleted before plan** (prevents retry loops)
+- Idea files are **deleted after plan is successfully saved** (crash-safe)
+- Selected idea is **tracked in state** for crash recovery
 - Empty/invalid ideas are **automatically cleaned up**
 - No naming conventions required - any `.md` file works
 

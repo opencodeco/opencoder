@@ -27,6 +27,8 @@ But what if you want the AI to **work for you** while you're away?
 
 ### The "Aha!" Moment
 
+This concept is inspired by [Dax Raad](https://github.com/daxraad) from OpenCode, who shares in [this video](https://youtu.be/o3gmwzo-Mik?si=Q6u_8vAv4hw7cIQ8) that while AI is incredibly powerful, it doesn't replace the human creativity needed for high-level product decisions. Identifying a product's "aha moment" requires empathy and ruthless simplification that machines cannot replicate. The core elements of entrepreneurship - crafting unique ideas, designing intuitive experiences, and the difficult day-to-day strategic thinking - remain as demanding and human-centric as ever.
+
 OpenCoder's insight is simple but powerful:
 
 > **What if the AI never stopped improving your project?**
