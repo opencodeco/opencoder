@@ -2,9 +2,12 @@
  * CLI argument parsing and program setup
  */
 
+import { resolve } from "node:path"
 import { Command } from "commander"
 import { loadConfig } from "./config.ts"
+import { initializePaths } from "./fs.ts"
 import { runLoop } from "./loop.ts"
+import { formatMetricsSummary, loadMetrics } from "./metrics.ts"
 import type { CliOptions } from "./types.ts"
 
 const VERSION = "1.0.0"
@@ -39,6 +42,7 @@ function createProgram(): Command {
 		.option("--no-auto-commit", "Disable automatic commits after tasks")
 		.option("--no-auto-push", "Disable automatic push after cycles")
 		.option("-s, --signoff", "Add Signed-off-by line to commits")
+		.option("--status", "Display metrics summary and exit")
 
 	// Add examples to help
 	program.addHelpText(
@@ -63,6 +67,12 @@ Examples:
   $ opencoder -m anthropic/claude-sonnet-4 -s
     Run with commit signoff enabled
 
+  $ opencoder --status
+    Display metrics summary without starting the loop
+
+  $ opencoder --status -p ./myproject
+    Display metrics for a specific project
+
 Options:
     -p, --project <dir>         Project directory (default: current directory)
     -m, --model <model>         Model for both plan and build
@@ -72,6 +82,7 @@ Options:
     --no-auto-commit            Disable automatic commits after tasks
     --no-auto-push              Disable automatic push after cycles
     -s, --signoff               Add Signed-off-by line to commits
+    --status                    Display metrics summary and exit
 
 Environment variables:
     OPENCODER_PLAN_MODEL        Default plan model
@@ -133,6 +144,7 @@ export function parseCli(argv: string[] = process.argv): ParsedCli {
 			autoCommit: opts.autoCommit as boolean | undefined,
 			autoPush: opts.autoPush as boolean | undefined,
 			commitSignoff: opts.signoff as boolean | undefined,
+			status: opts.status as boolean | undefined,
 		},
 		hint: args[0],
 	}
@@ -169,6 +181,21 @@ export async function run(): Promise<void> {
 				autoCommit: opts.autoCommit as boolean | undefined,
 				autoPush: opts.autoPush as boolean | undefined,
 				commitSignoff: opts.signoff as boolean | undefined,
+				status: opts.status as boolean | undefined,
+			}
+
+			// Handle --status flag: display metrics and exit
+			if (cliOptions.status) {
+				const projectDir = cliOptions.project ? resolve(cliOptions.project) : process.cwd()
+				const paths = initializePaths(projectDir)
+				const metrics = await loadMetrics(paths.metricsFile)
+
+				console.log("\nOpenCoder Metrics")
+				console.log("=================\n")
+				console.log(formatMetricsSummary(metrics))
+				console.log(`\nLast activity: ${metrics.lastActivityTime}`)
+				console.log("")
+				return
 			}
 
 			const config = await loadConfig(cliOptions, hint)

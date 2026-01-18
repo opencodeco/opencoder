@@ -180,4 +180,5 @@ export interface CliOptions {
 	autoCommit?: boolean
 	autoPush?: boolean
 	commitSignoff?: boolean
+	status?: boolean
 }
