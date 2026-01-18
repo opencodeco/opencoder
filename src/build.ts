@@ -1,5 +1,5 @@
 /**
- * OpenCode SDK builder with live event streaming
+ * OpenCode SDK build module with live event streaming
  */
 
 import { createOpencode } from "@opencode-ai/sdk"

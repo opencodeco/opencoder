@@ -1,5 +1,5 @@
 /**
- * Tests for builder module
+ * Tests for build module
  */
 
 import { beforeEach, describe, expect, test } from "bun:test"
@@ -86,7 +86,7 @@ function createMockLogger(): EventLogger & { calls: MockLoggerCalls } {
 	}
 }
 
-describe("builder", () => {
+describe("build", () => {
 	describe("extractText", () => {
 		test("extracts text from single text part", () => {
 			const parts: Part[] = [{ type: "text", text: "Hello world" }]
