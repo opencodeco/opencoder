@@ -142,6 +142,32 @@ import { name, version, description, agents } from "opencode-plugin-opencoder"
 
 The plugin currently provides a minimal hooks structure that can be extended in the future. Agent registration is handled via the postinstall script since the OpenCode plugin API does not yet support dynamic agent registration.
 
+## Debugging
+
+Enable debug logging to see plugin activity:
+
+```bash
+OPENCODER_DEBUG=1 opencode @opencoder
+```
+
+When enabled, the plugin logs:
+
+| Event | Information Logged |
+|-------|-------------------|
+| `event` | Event type, property keys |
+| `tool.execute.before` | Tool name, session ID, call ID, argument keys |
+| `tool.execute.after` | Tool name, session ID, call ID, title, output length |
+
+Log output format:
+
+```
+[2025-01-18T12:00:00.000Z] [opencoder] Event received {
+  "directory": "/path/to/project",
+  "type": "session.created",
+  "properties": ["sessionID", "model"]
+}
+```
+
 ## Development
 
 ```bash
