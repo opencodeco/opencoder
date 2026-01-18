@@ -22,13 +22,212 @@ type Client = Awaited<ReturnType<typeof createOpencode>>["client"]
 type Server = Awaited<ReturnType<typeof createOpencode>>["server"]
 
 /** Message part with text */
-interface TextPart {
+export interface TextPart {
 	type: "text"
 	text: string
 }
 
 /** Message part (union type) */
-type Part = TextPart | { type: string; [key: string]: unknown }
+export type Part = TextPart | { type: string; [key: string]: unknown }
+
+/**
+ * Extract text content from message parts
+ */
+export function extractText(parts: Part[]): string {
+	return parts
+		.filter((p): p is TextPart => p.type === "text" && typeof p.text === "string")
+		.map((p) => p.text)
+		.join("\n")
+}
+
+/** Event from the OpenCode server */
+export interface ServerEvent {
+	type?: string
+	properties?: Record<string, unknown>
+}
+
+/** Logger interface for event handling */
+export interface EventLogger {
+	stopSpinner(): void
+	stream(text: string): void
+	streamEnd(): void
+	toolCall(name: string, input?: unknown): void
+	startSpinner(message: string): void
+	toolResult(output: string): void
+	thinking(text: string): void
+	tokens(input: number, output: number): void
+	logError(message: string): void
+	logVerbose(message: string): void
+	fileChange(action: string, filePath: string): void
+	step(action: string, detail?: string): void
+}
+
+/**
+ * Extract contextual information from tool input for display
+ */
+function extractToolContext(input: unknown): string {
+	if (typeof input === "string") {
+		return input.length > 50 ? `${input.slice(0, 50)}...` : input
+	}
+	if (typeof input === "object" && input !== null) {
+		const obj = input as Record<string, unknown>
+		// Extract key parameters for common tools
+		if ("filePath" in obj) return String(obj.filePath)
+		if ("path" in obj) return String(obj.path)
+		if ("pattern" in obj) return String(obj.pattern)
+		if ("command" in obj) {
+			const cmd = String(obj.command)
+			return cmd.length > 50 ? `${cmd.slice(0, 50)}...` : cmd
+		}
+		if ("query" in obj) return `"${obj.query}"`
+	}
+	return ""
+}
+
+/** Events that are too noisy to show even in verbose mode */
+const NOISY_EVENTS = new Set([
+	"message.part.updated",
+	"session.updated",
+	"session.diff",
+	"lsp.updated",
+	"lsp.client.diagnostics",
+])
+
+/** Events that indicate important state changes */
+const IMPORTANT_EVENTS = new Set([
+	"session.created",
+	"session.status",
+	"session.idle",
+	"file.edited",
+	"file.created",
+	"file.deleted",
+])
+
+/**
+ * Handle a single event from the server stream
+ */
+export function handleEvent(event: ServerEvent, logger: EventLogger): void {
+	const { type, properties } = event
+
+	switch (type) {
+		case "message.part.text": {
+			// Stream text output in real-time
+			const text = properties?.text
+			if (typeof text === "string") {
+				logger.stopSpinner()
+				logger.stream(text)
+			}
+			break
+		}
+
+		case "message.part.tool.start": {
+			const name = properties?.name
+			const input = properties?.input
+			if (typeof name === "string") {
+				logger.stopSpinner()
+				logger.streamEnd()
+				logger.toolCall(name, input)
+				// Build spinner message with context from tool input
+				const context = extractToolContext(input)
+				const spinnerMsg = context ? `Running ${name}: ${context}...` : `Running ${name}...`
+				logger.startSpinner(spinnerMsg)
+			}
+			break
+		}
+
+		case "message.part.tool.result": {
+			logger.stopSpinner()
+			const output = properties?.output
+			if (typeof output === "string" && output.length > 0) {
+				logger.toolResult(output)
+			}
+			break
+		}
+
+		case "message.part.thinking": {
+			const text = properties?.text
+			if (typeof text === "string") {
+				logger.stopSpinner()
+				logger.thinking(text)
+			}
+			break
+		}
+
+		case "message.complete": {
+			logger.stopSpinner()
+			logger.streamEnd()
+			const usage = properties?.usage as { input?: number; output?: number } | undefined
+			if (usage?.input !== undefined && usage?.output !== undefined) {
+				logger.tokens(usage.input, usage.output)
+			}
+			break
+		}
+
+		case "message.error": {
+			logger.stopSpinner()
+			const message = properties?.message
+			if (typeof message === "string") {
+				logger.logError(message)
+			}
+			break
+		}
+
+		case "file.edited": {
+			const filePath = properties?.path || properties?.filePath
+			if (typeof filePath === "string") {
+				logger.fileChange("Edited", filePath)
+			}
+			break
+		}
+
+		case "file.created": {
+			const filePath = properties?.path || properties?.filePath
+			if (typeof filePath === "string") {
+				logger.fileChange("Created", filePath)
+			}
+			break
+		}
+
+		case "file.deleted": {
+			const filePath = properties?.path || properties?.filePath
+			if (typeof filePath === "string") {
+				logger.fileChange("Deleted", filePath)
+			}
+			break
+		}
+
+		case "session.status": {
+			const status = properties?.status
+			if (typeof status === "string" && status !== "idle") {
+				logger.step("Session", status)
+			}
+			break
+		}
+
+		case "session.complete":
+		case "session.abort":
+			// Session ended
+			logger.stopSpinner()
+			logger.logVerbose(`Session ${type}`)
+			break
+
+		default:
+			// Filter out noisy events
+			if (type && NOISY_EVENTS.has(type)) {
+				// Don't log anything for noisy events
+				break
+			}
+			// Log important or unknown events in verbose mode
+			if (type && !type.startsWith("server.")) {
+				if (IMPORTANT_EVENTS.has(type)) {
+					logger.logVerbose(`Event: ${type}`)
+				} else {
+					// Only show truly unknown events
+					logger.logVerbose(`Event: ${type}`)
+				}
+			}
+	}
+}
 
 export class Builder {
 	private client!: Client
@@ -71,7 +270,7 @@ export class Builder {
 	 * Run the plan phase
 	 */
 	async runPlan(cycle: number, hint?: string): Promise<string> {
-		this.logger.header(`CYCLE ${cycle} - PLAN PHASE`)
+		this.logger.phase("Planning", `Cycle ${cycle}`)
 
 		const prompt = generatePlanPrompt(cycle, hint)
 
@@ -102,8 +301,8 @@ export class Builder {
 		taskNum: number,
 		totalTasks: number,
 	): Promise<BuildResult> {
-		this.logger.subheader(`TASK ${taskNum}/${totalTasks}`)
-		this.logger.say(task)
+		this.logger.phase("Building", `Task ${taskNum}/${totalTasks}`)
+		this.logger.say(`  ${task}`)
 
 		if (!this.sessionId) {
 			return { success: false, error: "No active session" }
@@ -123,7 +322,7 @@ export class Builder {
 	 * Run the evaluation phase
 	 */
 	async runEvaluation(cycle: number, planContent: string): Promise<string> {
-		this.logger.header(`CYCLE ${cycle} - EVALUATION PHASE`)
+		this.logger.phase("Evaluating", `Cycle ${cycle}`)
 
 		if (!this.sessionId) {
 			throw new Error("No active session")
@@ -164,8 +363,9 @@ export class Builder {
 			// Clean up the temporary session
 			try {
 				await this.client.session.delete({ path: { id: tempSessionId } })
-			} catch {
-				// Ignore cleanup errors
+			} catch (err) {
+				// Session cleanup is best-effort; log but don't fail
+				this.logger.logVerbose(`Failed to delete temporary session: ${err}`)
 			}
 		}
 	}
@@ -174,8 +374,8 @@ export class Builder {
 	 * Run plan for a specific idea
 	 */
 	async runIdeaPlan(ideaContent: string, ideaFilename: string, cycle: number): Promise<string> {
-		this.logger.header(`CYCLE ${cycle} - IDEA PLAN`)
-		this.logger.info(`Planning for: ${ideaFilename}`)
+		this.logger.phase("Planning from Idea", `Cycle ${cycle}`)
+		this.logger.step("Idea", ideaFilename)
 
 		const prompt = generateIdeaPlanPrompt(ideaContent, ideaFilename, cycle)
 
@@ -235,7 +435,7 @@ export class Builder {
 			throw new Error("No response from OpenCode")
 		}
 
-		return this.extractText(result.data.parts as Part[])
+		return extractText(result.data.parts as Part[])
 	}
 
 	/**
@@ -264,103 +464,12 @@ export class Builder {
 			for await (const event of stream) {
 				if (this.eventStreamAbort?.signal.aborted) break
 
-				this.handleEvent(event)
+				handleEvent(event, this.logger)
 			}
 		} catch (err) {
 			// Stream ended or errored
 			this.logger.logVerbose(`Event stream ended: ${err}`)
 		}
-	}
-
-	/**
-	 * Handle a single event from the stream
-	 */
-	private handleEvent(event: { type?: string; properties?: Record<string, unknown> }): void {
-		const { type, properties } = event
-
-		switch (type) {
-			case "message.part.text": {
-				// Stream text output in real-time
-				const text = properties?.text
-				if (typeof text === "string") {
-					this.logger.stopSpinner()
-					this.logger.stream(text)
-				}
-				break
-			}
-
-			case "message.part.tool.start": {
-				const name = properties?.name
-				const input = properties?.input
-				if (typeof name === "string") {
-					this.logger.stopSpinner()
-					this.logger.streamEnd()
-					this.logger.toolCall(name, input)
-					this.logger.startSpinner(`Running ${name}...`)
-				}
-				break
-			}
-
-			case "message.part.tool.result": {
-				this.logger.stopSpinner()
-				const output = properties?.output
-				if (typeof output === "string" && output.length > 0) {
-					this.logger.toolResult(output)
-				}
-				break
-			}
-
-			case "message.part.thinking": {
-				const text = properties?.text
-				if (typeof text === "string") {
-					this.logger.stopSpinner()
-					this.logger.thinking(text)
-				}
-				break
-			}
-
-			case "message.complete": {
-				this.logger.stopSpinner()
-				this.logger.streamEnd()
-				const usage = properties?.usage as { input?: number; output?: number } | undefined
-				if (usage?.input !== undefined && usage?.output !== undefined) {
-					this.logger.tokens(usage.input, usage.output)
-				}
-				break
-			}
-
-			case "message.error": {
-				this.logger.stopSpinner()
-				const message = properties?.message
-				if (typeof message === "string") {
-					this.logger.logError(message)
-				}
-				break
-			}
-
-			case "session.complete":
-			case "session.abort":
-				// Session ended
-				this.logger.stopSpinner()
-				this.logger.logVerbose(`Session ${type}`)
-				break
-
-			default:
-				// Log unknown events in verbose mode
-				if (type && !type.startsWith("server.")) {
-					this.logger.logVerbose(`Event: ${type}`)
-				}
-		}
-	}
-
-	/**
-	 * Extract text content from message parts
-	 */
-	private extractText(parts: Part[]): string {
-		return parts
-			.filter((p): p is TextPart => p.type === "text" && typeof p.text === "string")
-			.map((p) => p.text)
-			.join("\n")
 	}
 
 	/**
@@ -371,8 +480,9 @@ export class Builder {
 			try {
 				await this.client.session.abort({ path: { id: this.sessionId } })
 				this.logger.logVerbose("Session aborted")
-			} catch {
-				// Ignore abort errors
+			} catch (err) {
+				// Session abort is best-effort during shutdown; log but don't fail
+				this.logger.logVerbose(`Failed to abort session: ${err}`)
 			}
 		}
 	}
@@ -406,8 +516,9 @@ export class Builder {
 			try {
 				this.server.close()
 				this.logger.say("OpenCode server stopped")
-			} catch {
-				// Ignore close errors
+			} catch (err) {
+				// Server close is best-effort during shutdown; log but don't fail
+				this.logger.logVerbose(`Failed to close server: ${err}`)
 			}
 		}
 	}

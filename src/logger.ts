@@ -30,6 +30,8 @@ const SYMBOLS = {
 	success: "✓",
 	error: "✗",
 	arrow: "▶",
+	phase: "●",
+	step: "◦",
 	spinner: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
 }
 
@@ -145,6 +147,37 @@ export class Logger {
 	}
 
 	/**
+	 * Log a major phase transition (always shown)
+	 */
+	phase(name: string, detail?: string): void {
+		this.stopSpinner()
+		const detailStr = detail ? ` ${ANSI.dim}${detail}${ANSI.reset}` : ""
+		console.log(`${ANSI.cyan}${SYMBOLS.phase} ${ANSI.bold}${name}${ANSI.reset}${detailStr}`)
+		this.writeToBuffer(this.formatForFile(`[PHASE] ${name} ${detail || ""}`))
+	}
+
+	/**
+	 * Log a step within a phase (always shown)
+	 */
+	step(action: string, detail?: string): void {
+		this.stopSpinner()
+		const detailStr = detail ? ` ${ANSI.dim}${detail}${ANSI.reset}` : ""
+		console.log(`  ${ANSI.blue}${SYMBOLS.step} ${action}${detailStr}${ANSI.reset}`)
+		this.writeToBuffer(this.formatForFile(`[STEP] ${action} ${detail || ""}`))
+	}
+
+	/**
+	 * Log file change (always shown - important feedback)
+	 */
+	fileChange(action: string, filePath: string): void {
+		this.stopSpinner()
+		// Shorten the path for display
+		const shortPath = filePath.length > 60 ? `...${filePath.slice(-57)}` : filePath
+		console.log(`  ${ANSI.green}${SYMBOLS.success} ${action}: ${shortPath}${ANSI.reset}`)
+		this.writeToBuffer(this.formatForFile(`[FILE] ${action}: ${filePath}`))
+	}
+
+	/**
 	 * Stream text without newline (for real-time output)
 	 */
 	stream(text: string): void {
@@ -200,12 +233,20 @@ export class Logger {
 	 * Log a tool result
 	 */
 	toolResult(output: string): void {
-		// Only show tool results in verbose mode - they can be noisy
+		// Show brief result in non-verbose mode, full result in verbose mode
+		const firstLine = output.split("\n")[0] || output
+		const truncated = firstLine.length > 100 ? `${firstLine.slice(0, 100)}...` : firstLine
+
 		if (this.verbose) {
-			const truncated = output.length > 200 ? `${output.slice(0, 200)}...` : output
-			const firstLine = truncated.split("\n")[0] || truncated
-			console.log(`${ANSI.gray}${SYMBOLS.result} ${firstLine}${ANSI.reset}`)
+			// Verbose mode: show more detail (up to 200 chars)
+			const verboseTruncated = output.length > 200 ? `${output.slice(0, 200)}...` : output
+			const verboseFirstLine = verboseTruncated.split("\n")[0] || verboseTruncated
+			console.log(`${ANSI.gray}${SYMBOLS.result} ${verboseFirstLine}${ANSI.reset}`)
+		} else {
+			// Non-verbose mode: show brief result (first line, max 100 chars)
+			console.log(`${ANSI.gray}${SYMBOLS.result} ${truncated}${ANSI.reset}`)
 		}
+
 		this.writeToBuffer(this.formatForFile(`[RESULT] ${output}`))
 	}
 
@@ -217,7 +258,7 @@ export class Logger {
 		// Show thinking in a visually distinct way
 		const lines = text.split("\n")
 		const firstLine = lines[0] || text
-		const display = firstLine.length > 100 ? `${firstLine.slice(0, 100)}...` : firstLine
+		const display = firstLine.length > 150 ? `${firstLine.slice(0, 150)}...` : firstLine
 		console.log(`${ANSI.magenta}${SYMBOLS.thinking} ${ANSI.italic}${display}${ANSI.reset}`)
 		this.writeToBuffer(this.formatForFile(`[THINKING] ${text}`))
 	}
