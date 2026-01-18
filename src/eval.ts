@@ -1,17 +1,17 @@
 /**
- * Plan evaluation response parsing
+ * Plan eval response parsing
  */
 
-import type { EvaluationResult } from "./types.ts"
+import type { EvalResult } from "./types.ts"
 
 /**
- * Parse evaluation response from the AI
+ * Parse eval response from the AI
  *
  * Expected formats:
  * - COMPLETE\nReason: ...
  * - NEEDS_WORK\nReason: ...
  */
-export function parseEvaluation(response: string): EvaluationResult {
+export function parseEval(response: string): EvalResult {
 	const trimmed = response.trim().toUpperCase()
 
 	// Check for COMPLETE
@@ -35,9 +35,9 @@ export function parseEvaluation(response: string): EvaluationResult {
 }
 
 /**
- * Extract the reason from an evaluation response
+ * Extract the reason from an eval response
  */
-export function extractEvaluationReason(response: string): string | null {
+export function extractEvalReason(response: string): string | null {
 	// Look for Reason: pattern
 	const reasonMatch = response.match(/Reason:\s*(.+?)(?:\n|$)/i)
 	if (reasonMatch?.[1]) {
@@ -56,15 +56,15 @@ export function extractEvaluationReason(response: string): string | null {
 }
 
 /**
- * Check if evaluation indicates cycle is complete
+ * Check if eval indicates cycle is complete
  */
-export function isComplete(result: EvaluationResult): boolean {
+export function isComplete(result: EvalResult): boolean {
 	return result === "COMPLETE"
 }
 
 /**
- * Check if evaluation indicates more work is needed
+ * Check if eval indicates more work is needed
  */
-export function needsWork(result: EvaluationResult): boolean {
+export function needsWork(result: EvalResult): boolean {
 	return result === "NEEDS_WORK"
 }
