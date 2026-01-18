@@ -4,7 +4,7 @@ OpenCode plugin providing autonomous development agents for continuous codebase 
 
 ## Overview
 
-This plugin installs three agents that work together to create an infinite autonomous development loop:
+This plugin follows the [OpenCode plugin API](https://opencode.ai/docs/plugins/) and installs three agents that work together to create an infinite autonomous development loop:
 
 | Agent | Purpose |
 |-------|---------|
@@ -13,6 +13,17 @@ This plugin installs three agents that work together to create an infinite auton
 | `opencoder-builder` | Executes tasks with precision, runs tests, and verifies changes |
 
 ## Installation
+
+Add the plugin to your `opencode.json` config:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["opencode-plugin-opencoder"]
+}
+```
+
+Or install manually:
 
 ```bash
 bun add opencode-plugin-opencoder
@@ -114,6 +125,22 @@ Or copy the agents manually:
 ```bash
 cp node_modules/opencode-plugin-opencoder/agents/*.md ~/.config/opencode/agents/
 ```
+
+## Plugin API
+
+This plugin exports:
+
+```typescript
+// Main plugin function (OpenCode plugin API)
+import { OpenCoderPlugin } from "opencode-plugin-opencoder"
+// or
+import OpenCoderPlugin from "opencode-plugin-opencoder"
+
+// Metadata exports (for introspection)
+import { name, version, description, agents } from "opencode-plugin-opencoder"
+```
+
+The plugin currently provides a minimal hooks structure that can be extended in the future. Agent registration is handled via the postinstall script since the OpenCode plugin API does not yet support dynamic agent registration.
 
 ## Development
 

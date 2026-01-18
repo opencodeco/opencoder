@@ -4,11 +4,11 @@ This file provides instructions for AI coding agents working in this repository.
 
 ## Project Overview
 
-This is an **OpenCode plugin** that provides autonomous development agents. The plugin installs three agents that work together to create an infinite Plan-Build-Commit loop.
+This is an **OpenCode plugin** that provides autonomous development agents. The plugin follows the [OpenCode plugin API](https://opencode.ai/docs/plugins/) and installs three agents that work together to create an infinite Plan-Build-Commit loop.
 
 - **Type**: OpenCode Plugin
 - **Runtime**: Bun
-- **Language**: TypeScript (minimal)
+- **Language**: TypeScript
 
 ## Project Structure
 
@@ -19,18 +19,65 @@ opencode-plugin-opencoder/
 │   ├── opencoder-planner.md  # Planning subagent
 │   └── opencoder-builder.md  # Building subagent
 ├── src/
-│   └── index.ts              # Plugin entry point (exports metadata)
+│   ├── index.ts              # Main entry: exports plugin + re-exports metadata
+│   ├── plugin.ts             # Plugin function (OpenCode plugin API)
+│   ├── metadata.ts           # Metadata exports (name, version, agents)
+│   ├── paths.mjs             # Path utilities for install/uninstall scripts
+│   └── paths.d.mts           # Type declarations for paths.mjs
+├── tests/
+│   ├── index.test.ts         # Tests for main exports
+│   ├── plugin.test.ts        # Tests for plugin function
+│   ├── agents.test.ts        # Tests for agent files
+│   ├── install.test.ts       # Tests for install/uninstall scripts
+│   └── paths.test.ts         # Tests for path utilities
 ├── postinstall.mjs           # Copies agents to ~/.config/opencode/agents/
+├── preuninstall.mjs          # Removes agents on uninstall
 ├── package.json              # npm package configuration
 ├── biome.json                # Linter configuration
 └── tsconfig.json             # TypeScript configuration
 ```
+
+## Plugin Architecture
+
+The plugin follows the OpenCode plugin structure:
+
+### Main Exports (`src/index.ts`)
+
+```typescript
+// Plugin function (default + named export)
+export { OpenCoderPlugin } from "./plugin"
+export { OpenCoderPlugin as default } from "./plugin"
+
+// Metadata re-exports (backwards compatibility)
+export { name, version, description, agents } from "./metadata"
+```
+
+### Plugin Function (`src/plugin.ts`)
+
+```typescript
+import type { Plugin } from "@opencode-ai/plugin"
+
+export const OpenCoderPlugin: Plugin = async (ctx) => {
+  // Returns hooks object (minimal for now)
+  return {}
+}
+```
+
+### Metadata (`src/metadata.ts`)
+
+Contains package metadata exports for introspection and backwards compatibility.
 
 ## Commands
 
 ```bash
 # Install dependencies
 bun install
+
+# Run tests
+bun test
+
+# Run type checker
+bun run typecheck
 
 # Run linter
 bun run lint
