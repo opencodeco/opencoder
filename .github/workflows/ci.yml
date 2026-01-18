@@ -18,10 +18,26 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --ignore-scripts
 
       - name: Check formatting and lint
-        run: bunx biome check src/
+        run: bun run lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --ignore-scripts
+
+      - name: Run tests
+        run: bun test
 
   test-postinstall:
     runs-on: ubuntu-latest
@@ -42,3 +58,13 @@ jobs:
           test -f ~/.config/opencode/agents/opencoder-planner.md
           test -f ~/.config/opencode/agents/opencoder-builder.md
           echo "All agents installed successfully"
+
+      - name: Test preuninstall script
+        run: node preuninstall.mjs
+
+      - name: Verify agents were removed
+        run: |
+          test ! -f ~/.config/opencode/agents/opencoder.md
+          test ! -f ~/.config/opencode/agents/opencoder-planner.md
+          test ! -f ~/.config/opencode/agents/opencoder-builder.md
+          echo "All agents removed successfully"
