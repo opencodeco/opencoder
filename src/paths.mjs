@@ -177,6 +177,10 @@ function delay(ms) {
  */
 export async function retryOnTransientError(fn, options = {}) {
 	const { retries = 3, initialDelayMs = 100 } = options
+	// Sanitize initialDelayMs: clamp negative to 0, handle NaN by using default
+	const sanitizedDelayMs = Number.isNaN(initialDelayMs)
+		? 100
+		: Math.max(0, initialDelayMs)
 	let lastError
 
 	for (let attempt = 0; attempt <= retries; attempt++) {
@@ -191,8 +195,8 @@ export async function retryOnTransientError(fn, options = {}) {
 				throw err
 			}
 
-			// Calculate exponential backoff delay: initialDelayMs * 2^attempt
-			const backoffDelay = initialDelayMs * 2 ** attempt
+			// Calculate exponential backoff delay: sanitizedDelayMs * 2^attempt
+			const backoffDelay = sanitizedDelayMs * 2 ** attempt
 			await delay(backoffDelay)
 		}
 	}

@@ -595,7 +595,7 @@ describe("paths.mjs exports", () => {
 				expect(elapsed).toBeLessThan(50)
 			})
 
-			it("should handle negative initialDelayMs (treated as ~1ms delay by setTimeout)", async () => {
+			it("should handle negative initialDelayMs (clamped to 0ms)", async () => {
 				let callCount = 0
 				const start = Date.now()
 				await retryOnTransientError(
@@ -611,7 +611,7 @@ describe("paths.mjs exports", () => {
 				)
 				const elapsed = Date.now() - start
 				expect(callCount).toBe(2)
-				// Negative delay is clamped to ~1ms by setTimeout, should complete quickly
+				// Negative delay is clamped to 0ms, should complete quickly
 				expect(elapsed).toBeLessThan(50)
 			})
 
@@ -632,11 +632,10 @@ describe("paths.mjs exports", () => {
 				expect(callCount).toBe(0) // Loop never runs
 			})
 
-			it("should handle non-numeric initialDelayMs (NaN becomes ~1ms delay)", async () => {
+			it("should handle non-numeric initialDelayMs (NaN falls back to default 100ms)", async () => {
 				let callCount = 0
 				const start = Date.now()
-				// When initialDelayMs is NaN, delay calculation produces NaN
-				// setTimeout with NaN delay treats it as ~1ms
+				// When initialDelayMs is NaN, it is sanitized to the default 100ms
 				await retryOnTransientError(
 					() => {
 						callCount++
@@ -650,8 +649,9 @@ describe("paths.mjs exports", () => {
 				)
 				const elapsed = Date.now() - start
 				expect(callCount).toBe(2)
-				// NaN delay becomes ~1ms
-				expect(elapsed).toBeLessThan(50)
+				// NaN delay falls back to default 100ms
+				expect(elapsed).toBeGreaterThanOrEqual(90)
+				expect(elapsed).toBeLessThan(200)
 			})
 
 			it("should handle Infinity retries (up to a reasonable test limit)", async () => {
