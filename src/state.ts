@@ -56,7 +56,7 @@ export async function loadState(stateFile: string): Promise<RuntimeState> {
 		const validatedPhase = validatePhase(parsed.phase)
 		if (parsed.phase !== undefined && validatedPhase === null) {
 			console.warn(
-				`Warning: Invalid phase in ${stateFile} (got "${parsed.phase}", expected one of: init, plan, build, evaluation). Using default.`,
+				`Warning: Invalid phase in ${stateFile} (got "${parsed.phase}", expected one of: init, plan, build, eval). Using default.`,
 			)
 		}
 
@@ -139,7 +139,7 @@ function toRuntimeState(state: State): RuntimeState {
  * Validate phase string
  */
 function validatePhase(phase: unknown): Phase | null {
-	const validPhases: Phase[] = ["init", "plan", "build", "evaluation"]
+	const validPhases: Phase[] = ["init", "plan", "build", "eval"]
 	if (typeof phase === "string" && validPhases.includes(phase as Phase)) {
 		return phase as Phase
 	}
