@@ -86,7 +86,7 @@ src/
   plan.ts         # Plan parsing, validation, prompt generation
   ideas.ts        # Ideas queue management, selection logic
   builder.ts      # OpenCode SDK wrapper with event streaming
-  evaluator.ts    # Evaluation response parsing
+  eval.ts         # Eval response parsing
   loop.ts         # Main autonomous loop
   git.ts          # Git operations (commit, push, change detection)
 
@@ -95,7 +95,7 @@ tests/
   state.test.ts     # State persistence tests
   plan.test.ts      # Plan parsing tests
   ideas.test.ts     # Ideas queue tests
-  evaluator.test.ts # Evaluation parsing tests
+  eval.test.ts      # Eval parsing tests
   git.test.ts       # Git operations tests
 ```
 
@@ -404,7 +404,7 @@ bun run dev -- -m anthropic/claude-sonnet-4 -p test-project
 
 1. **Planning Phase**: Generate a development plan (checks ideas queue first)
 2. **Build Phase**: Build tasks from the plan one by one
-3. **Evaluation Phase**: AI evaluates if cycle is complete (COMPLETE/NEEDS_WORK)
+3. **Eval Phase**: AI evaluates if cycle is complete (COMPLETE/NEEDS_WORK)
 
 State is persisted to `.opencode/opencoder/state.json` after each phase for resumability.
 
