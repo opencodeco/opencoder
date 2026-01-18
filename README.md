@@ -462,4 +462,5 @@ MIT License - See [LICENSE](LICENSE) file.
 
 - [OpenCode](https://opencode.ai)
 - [OpenCode SDK](https://www.npmjs.com/package/@opencode-ai/sdk)
+- [Changelog](CHANGELOG.md) - Version history and release notes
 - [Report Issues](https://github.com/opencodeco/opencoder/issues)
