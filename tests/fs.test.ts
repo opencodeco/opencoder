@@ -51,6 +51,7 @@ describe("fs", () => {
 			expect(paths.ideasDir).toBe("/project/.opencode/opencoder/ideas")
 			expect(paths.ideasHistoryDir).toBe("/project/.opencode/opencoder/ideas/history")
 			expect(paths.configFile).toBe("/project/.opencode/opencoder/config.json")
+			expect(paths.metricsFile).toBe("/project/.opencode/opencoder/metrics.json")
 		})
 
 		test("resolves relative paths", () => {

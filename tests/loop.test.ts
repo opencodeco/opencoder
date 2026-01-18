@@ -34,6 +34,7 @@ function createTestPaths(): Paths {
 		ideasDir: join(TEST_DIR, "ideas"),
 		ideasHistoryDir: join(TEST_DIR, "ideas", "history"),
 		configFile: join(TEST_DIR, "config.json"),
+		metricsFile: join(TEST_DIR, "metrics.json"),
 	}
 }
 

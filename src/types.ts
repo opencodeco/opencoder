@@ -111,6 +111,32 @@ export interface Paths {
 	ideasHistoryDir: string
 	/** opencoder.json config file */
 	configFile: string
+	/** .opencoder/metrics.json */
+	metricsFile: string
+}
+
+/** Metrics data for tracking performance and statistics */
+export interface Metrics {
+	/** Total cycles completed successfully */
+	cyclesCompleted: number
+	/** Total cycles that timed out */
+	cyclesTimedOut: number
+	/** Total tasks completed successfully */
+	tasksCompleted: number
+	/** Total tasks that failed (skipped after max retries) */
+	tasksFailed: number
+	/** Total tasks skipped due to timeout */
+	tasksSkipped: number
+	/** Total retries across all operations */
+	totalRetries: number
+	/** Total ideas processed from queue */
+	ideasProcessed: number
+	/** Total duration of all completed cycles in milliseconds */
+	totalCycleDurationMs: number
+	/** ISO timestamp of first run */
+	firstRunTime?: string
+	/** ISO timestamp of last activity */
+	lastActivityTime: string
 }
 
 /** Result of task build */

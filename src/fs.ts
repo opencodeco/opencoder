@@ -30,6 +30,7 @@ export function initializePaths(projectDir: string): Paths {
 		ideasDir,
 		ideasHistoryDir: join(ideasDir, "history"),
 		configFile: join(opencoderDir, "config.json"),
+		metricsFile: join(opencoderDir, "metrics.json"),
 	}
 }
 

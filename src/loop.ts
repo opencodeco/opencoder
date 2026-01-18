@@ -27,9 +27,19 @@ import {
 	removeIdea,
 } from "./ideas.ts"
 import { Logger } from "./logger.ts"
+import {
+	loadMetrics,
+	recordCycleCompleted,
+	recordCycleTimeout,
+	recordIdeaProcessed,
+	recordRetry,
+	recordTaskCompleted,
+	recordTaskFailed,
+	saveMetrics,
+} from "./metrics.ts"
 import { getTasks, getUncompletedTasks, markTaskComplete, validatePlan } from "./plan.ts"
 import { loadState, saveState } from "./state.ts"
-import type { Config, Paths, RuntimeState } from "./types.ts"
+import type { Config, Metrics, Paths, RuntimeState } from "./types.ts"
 
 /** Global shutdown flag */
 let shutdownRequested = false
@@ -54,6 +64,9 @@ export async function runLoop(config: Config): Promise<void> {
 	// Load or create state
 	const state = await loadState(paths.stateFile)
 	logger.say(`Resuming from cycle ${state.cycle}, phase: ${state.phase}`)
+
+	// Load metrics
+	let metrics = await loadMetrics(paths.metricsFile)
 
 	// Initialize builder
 	const builder = new Builder(config, logger)
@@ -93,6 +106,10 @@ export async function runLoop(config: Config): Promise<void> {
 				)
 				logger.warn("Forcing cycle completion due to timeout...")
 
+				// Record timeout in metrics
+				metrics = recordCycleTimeout(metrics)
+				await saveMetrics(paths.metricsFile, metrics)
+
 				// Force transition to evaluation to complete the cycle
 				if (state.phase === "plan") {
 					// Can't complete without a plan, start new cycle
@@ -115,15 +132,15 @@ export async function runLoop(config: Config): Promise<void> {
 				switch (state.phase) {
 					case "init":
 					case "plan":
-						await runPlanPhase(state, builder, paths, logger, config)
+						metrics = await runPlanPhase(state, builder, paths, logger, config, metrics)
 						break
 
 					case "build":
-						await runBuildPhase(state, builder, paths, logger, config)
+						metrics = await runBuildPhase(state, builder, paths, logger, config, metrics)
 						break
 
 					case "evaluation":
-						await runEvaluationPhase(state, builder, paths, logger, config)
+						metrics = await runEvaluationPhase(state, builder, paths, logger, config, metrics)
 						break
 				}
 
@@ -131,9 +148,10 @@ export async function runLoop(config: Config): Promise<void> {
 				state.retryCount = 0
 				state.lastErrorTime = undefined
 			} catch (err) {
-				// Track the error
+				// Track the error and record retry in metrics
 				state.retryCount++
 				state.lastErrorTime = getISOTimestamp()
+				metrics = recordRetry(metrics)
 
 				logger.logError(
 					`Error in ${state.phase} phase (attempt ${state.retryCount}/${config.maxRetries}): ${err}`,
@@ -151,6 +169,7 @@ export async function runLoop(config: Config): Promise<void> {
 					if (state.phase === "build") {
 						// Skip the failed task and continue
 						logger.warn("Skipping failed task and continuing...")
+						metrics = recordTaskFailed(metrics)
 						await skipCurrentTask(state, paths, logger)
 					} else if (state.phase === "plan") {
 						// Clear any stuck idea and retry planning
@@ -169,6 +188,9 @@ export async function runLoop(config: Config): Promise<void> {
 						await sleep(backoffMs)
 					}
 				}
+
+				// Save metrics after error handling
+				await saveMetrics(paths.metricsFile, metrics)
 			}
 
 			// Persist state after each phase
@@ -247,7 +269,8 @@ async function runPlanPhase(
 	paths: Paths,
 	logger: Logger,
 	config: Config,
-): Promise<void> {
+	metrics: Metrics,
+): Promise<Metrics> {
 	let planContent: string
 	let ideaToRemove: { path: string; filename: string } | null = null
 
@@ -339,7 +362,7 @@ async function runPlanPhase(
 	if (!validation.valid) {
 		logger.logError(`Invalid plan: ${validation.error}`)
 		// Stay in plan phase to retry - don't remove the idea yet
-		return
+		return metrics
 	}
 
 	// Save the plan FIRST
@@ -360,6 +383,9 @@ async function runPlanPhase(
 		if (removed) {
 			logger.logVerbose(`Removed processed idea: ${ideaToRemove.filename}`)
 		}
+
+		// Record idea processed in metrics
+		metrics = recordIdeaProcessed(metrics)
 	}
 
 	// Clear the idea from state since it's now processed
@@ -371,6 +397,8 @@ async function runPlanPhase(
 	state.taskIndex = 0
 	state.totalTasks = tasks.length
 	state.sessionId = builder.getSessionId()
+
+	return metrics
 }
 
 /**
@@ -382,13 +410,14 @@ async function runBuildPhase(
 	paths: Paths,
 	logger: Logger,
 	config: Config,
-): Promise<void> {
+	metrics: Metrics,
+): Promise<Metrics> {
 	// Read current plan
 	const planContent = await readFileOrNull(paths.currentPlan)
 	if (!planContent) {
 		logger.logError("No plan file found, returning to plan phase")
 		state.phase = "plan"
-		return
+		return metrics
 	}
 
 	const tasks = getTasks(planContent)
@@ -398,7 +427,7 @@ async function runBuildPhase(
 	if (uncompletedTasks.length === 0) {
 		logger.success("All tasks completed!")
 		state.phase = "evaluation"
-		return
+		return metrics
 	}
 
 	// Find the next uncompleted task
@@ -406,7 +435,7 @@ async function runBuildPhase(
 	if (!nextTask) {
 		logger.success("All tasks completed!")
 		state.phase = "evaluation"
-		return
+		return metrics
 	}
 	const taskIndex = tasks.findIndex(
 		(t) => t.lineNumber === nextTask.lineNumber && t.description === nextTask.description,
@@ -418,7 +447,7 @@ async function runBuildPhase(
 	state.totalTasks = tasks.length
 
 	// Check for shutdown before starting task
-	if (shutdownRequested) return
+	if (shutdownRequested) return metrics
 
 	// Build the task
 	logger.info(`Building task ${state.currentTaskNum}/${tasks.length}`)
@@ -436,6 +465,9 @@ async function runBuildPhase(
 
 		logger.success(`Task ${state.currentTaskNum}/${tasks.length} complete`)
 
+		// Record task completion in metrics
+		metrics = recordTaskCompleted(metrics)
+
 		// Auto-commit changes if enabled
 		if (config.autoCommit && hasChanges(config.projectDir)) {
 			const commitMessage = generateCommitMessage(nextTask.description)
@@ -450,6 +482,8 @@ async function runBuildPhase(
 	if (config.taskPauseSeconds > 0 && !shutdownRequested) {
 		await sleep(config.taskPauseSeconds * 1000)
 	}
+
+	return metrics
 }
 
 /**
@@ -461,13 +495,14 @@ async function runEvaluationPhase(
 	paths: Paths,
 	logger: Logger,
 	config: Config,
-): Promise<void> {
+	metrics: Metrics,
+): Promise<Metrics> {
 	// Read current plan for evaluation
 	const planContent = await readFileOrNull(paths.currentPlan)
 	if (!planContent) {
 		logger.logError("No plan file found for evaluation")
 		state.phase = "plan"
-		return
+		return metrics
 	}
 
 	// Run evaluation
@@ -479,6 +514,16 @@ async function runEvaluationPhase(
 		logger.success(`Cycle ${state.cycle} complete!`)
 		if (reason) {
 			logger.say(`Reason: ${reason}`)
+		}
+
+		// Calculate cycle duration and record completion
+		if (state.cycleStartTime) {
+			const startTime = new Date(state.cycleStartTime).getTime()
+			const cycleDuration = Date.now() - startTime
+			metrics = recordCycleCompleted(metrics, cycleDuration)
+		} else {
+			// No start time, record without duration
+			metrics = recordCycleCompleted(metrics, 0)
 		}
 
 		// Archive the completed plan
@@ -509,6 +554,8 @@ async function runEvaluationPhase(
 		}
 		state.phase = "build"
 	}
+
+	return metrics
 }
 
 /**
