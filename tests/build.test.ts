@@ -10,7 +10,7 @@ import {
 	type Part,
 	type ServerEvent,
 	type TextPart,
-} from "../src/builder.ts"
+} from "../src/build.ts"
 
 /** Mock logger calls record */
 interface MockLoggerCalls {

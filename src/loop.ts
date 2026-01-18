@@ -8,7 +8,7 @@
  */
 
 import { join } from "node:path"
-import { Builder } from "./builder.ts"
+import { Builder } from "./build.ts"
 import { extractEvalReason, isComplete, parseEval } from "./eval.ts"
 import {
 	ensureDirectories,
