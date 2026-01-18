@@ -7,7 +7,7 @@
  * This allows OpenCode to discover and use the agents.
  */
 
-import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs"
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 
 import {
@@ -19,6 +19,55 @@ import {
 
 const packageRoot = getPackageRoot(import.meta.url)
 const AGENTS_SOURCE_DIR = getAgentsSourceDir(packageRoot)
+
+/** Minimum character count for valid agent files */
+const MIN_CONTENT_LENGTH = 100
+
+/** Keywords that should appear in valid agent files (case-insensitive) */
+const REQUIRED_KEYWORDS = ["agent", "task"]
+
+/**
+ * Validates that an agent file has valid content structure.
+ *
+ * Checks that the file:
+ * 1. Starts with a markdown header (# )
+ * 2. Contains at least MIN_CONTENT_LENGTH characters
+ * 3. Contains at least one of the expected keywords
+ *
+ * @param {string} filePath - Path to the agent file to validate
+ * @returns {{ valid: boolean, error?: string }} Validation result with optional error message
+ */
+function validateAgentContent(filePath) {
+	const content = readFileSync(filePath, "utf-8")
+
+	// Check minimum length
+	if (content.length < MIN_CONTENT_LENGTH) {
+		return {
+			valid: false,
+			error: `File too short: ${content.length} characters (minimum ${MIN_CONTENT_LENGTH})`,
+		}
+	}
+
+	// Check for markdown header at start
+	if (!content.startsWith("# ")) {
+		return {
+			valid: false,
+			error: "File does not start with a markdown header (# )",
+		}
+	}
+
+	// Check for required keywords (case-insensitive)
+	const lowerContent = content.toLowerCase()
+	const hasKeyword = REQUIRED_KEYWORDS.some((keyword) => lowerContent.includes(keyword))
+	if (!hasKeyword) {
+		return {
+			valid: false,
+			error: `File missing required keywords: ${REQUIRED_KEYWORDS.join(", ")}`,
+		}
+	}
+
+	return { valid: true }
+}
 
 /**
  * Main entry point for the postinstall script.
@@ -80,6 +129,12 @@ function main() {
 				throw new Error(
 					`File size mismatch: source=${sourceSize} bytes, target=${targetSize} bytes`,
 				)
+			}
+
+			// Validate content structure
+			const validation = validateAgentContent(targetPath)
+			if (!validation.valid) {
+				throw new Error(`Invalid agent file content: ${validation.error}`)
 			}
 
 			successes.push(file)
