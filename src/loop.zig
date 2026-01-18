@@ -62,10 +62,30 @@ pub const Loop = struct {
             self.log.sayFmt("Hint: {s}", .{hint});
         }
 
+        if (self.cfg.verbose) {
+            self.log.logVerbose("Verbose mode enabled");
+            {
+                var buf: [64]u8 = undefined;
+                const msg = std.fmt.bufPrint(&buf, "Backoff base: {d}s", .{self.cfg.backoff_base}) catch "";
+                self.log.logVerbose(msg);
+            }
+            {
+                var buf: [64]u8 = undefined;
+                const msg = std.fmt.bufPrint(&buf, "Max retries: {d}", .{self.cfg.max_retries}) catch "";
+                self.log.logVerbose(msg);
+            }
+            {
+                var buf: [64]u8 = undefined;
+                const msg = std.fmt.bufPrint(&buf, "Task pause: {d}s", .{self.cfg.task_pause_seconds}) catch "";
+                self.log.logVerbose(msg);
+            }
+        }
+
         self.log.say("Running continuously (Ctrl+C to stop, Ctrl+C twice to force)");
         self.log.say("");
 
         while (!shutdown_requested) {
+            self.log.logVerbose("Starting new cycle");
             self.log.say("");
             self.log.sayFmt("[Cycle {d}]", .{self.st.cycle});
             self.log.setCycle(self.st.cycle);
@@ -75,6 +95,7 @@ pub const Loop = struct {
 
             // Planning phase
             if (!fsutil.fileExists(self.paths.current_plan) or self.st.phase == .planning) {
+                self.log.logVerbose("Phase: planning");
                 // Check for ideas first
                 var idea_list = ideas.loadAllIdeas(self.paths.ideas_dir, self.allocator, self.cfg.max_file_size) catch null;
 
@@ -82,6 +103,11 @@ pub const Loop = struct {
 
                 if (idea_list) |*list| {
                     defer list.deinit();
+                    {
+                        var buf: [64]u8 = undefined;
+                        const msg = std.fmt.bufPrint(&buf, "Found {d} idea(s) in ideas queue", .{list.ideas.len}) catch "";
+                        self.log.logVerbose(msg);
+                    }
 
                     if (list.ideas.len == 1) {
                         // Single idea - use it directly
@@ -113,6 +139,7 @@ pub const Loop = struct {
                     } else {
                         // Multiple ideas - AI selects simplest one
                         self.log.sayFmt("[Cycle {d}] Found {d} idea(s) in queue", .{ self.st.cycle, list.ideas.len });
+                        self.log.logVerbose("Multiple ideas found, requesting AI selection");
 
                         // Format ideas for AI selection
                         const formatted = ideas.formatIdeasForSelection(list.ideas, self.allocator) catch |err| {
@@ -238,6 +265,7 @@ pub const Loop = struct {
             if (shutdown_requested) break;
 
             // Execution phase
+            self.log.logVerbose("Phase: execution");
             self.log.logFmt("[Cycle {d}] Executing tasks...", .{self.st.cycle});
 
             while (!shutdown_requested) {
@@ -267,6 +295,12 @@ pub const Loop = struct {
 
                 self.st.current_task_num += 1;
                 self.st.task_index += 1;
+
+                {
+                    var buf: [64]u8 = undefined;
+                    const msg = std.fmt.bufPrint(&buf, "Executing task {d}/{d}", .{ self.st.current_task_num, self.st.total_tasks }) catch "";
+                    self.log.logVerbose(msg);
+                }
 
                 const result = self.executor.runTask(
                     task.description,
@@ -311,6 +345,7 @@ pub const Loop = struct {
                     self.log.logError("  Plan file may not be updated correctly");
                 };
 
+                self.log.logVerbose("Task marked complete, saving state");
                 try self.st.save(self.paths.state_file, self.allocator);
 
                 // Small pause between tasks
@@ -321,6 +356,7 @@ pub const Loop = struct {
             if (shutdown_requested) break;
 
             // Evaluation phase
+            self.log.logVerbose("Phase: evaluation");
             const eval_result = evaluator.evaluate(
                 self.executor,
                 self.paths.current_plan,
@@ -339,6 +375,7 @@ pub const Loop = struct {
 
             if (eval_result == .complete) {
                 self.log.sayFmt("[Cycle {d}] Complete, starting new cycle", .{self.st.cycle});
+                self.log.logVerbose("Evaluation result: complete");
 
                 // Archive plan
                 plan.archive(
@@ -361,6 +398,7 @@ pub const Loop = struct {
                 self.st.current_task_num = 0;
                 self.st.total_tasks = 0;
             } else {
+                self.log.logVerbose("Evaluation result: needs_work");
                 // Check if there are actually pending tasks
                 if (!evaluator.hasPendingTasks(self.paths.current_plan, self.allocator, self.cfg.max_file_size)) {
                     self.log.sayFmt("[Cycle {d}] NEEDS_WORK but no tasks, starting new cycle", .{self.st.cycle});
@@ -385,6 +423,11 @@ pub const Loop = struct {
             }
 
             try self.st.save(self.paths.state_file, self.allocator);
+            {
+                var buf: [64]u8 = undefined;
+                const msg = std.fmt.bufPrint(&buf, "Cycle {d} complete, state saved", .{self.st.cycle -| 1}) catch "";
+                self.log.logVerbose(msg);
+            }
             self.log.sayFmt("[Cycle {d}] Complete", .{self.st.cycle -| 1});
         }
 
@@ -401,6 +444,11 @@ pub const Loop = struct {
 
     fn backoffSleep(self: *Loop) void {
         const sleep_time = self.cfg.backoff_base * 2;
+        if (self.cfg.verbose) {
+            var buf: [64]u8 = undefined;
+            const msg = std.fmt.bufPrint(&buf, "Backoff: sleeping for {d} seconds", .{sleep_time}) catch "Backoff sleep";
+            self.log.logVerbose(msg);
+        }
         std.Thread.sleep(@as(u64, sleep_time) * std.time.ns_per_s);
     }
 };
@@ -499,6 +547,9 @@ fn createTestPaths(allocator: Allocator) !fsutil.Paths {
     try std.fs.cwd().makePath(cycle_log_dir);
     try std.fs.cwd().makePath(history_dir);
 
+    const ideas_dir = try std.fs.path.join(allocator, &.{ temp_dir, "ideas" });
+    try std.fs.cwd().makePath(ideas_dir);
+
     return fsutil.Paths{
         .opencoder_dir = opencoder_dir,
         .state_file = state_file,
@@ -507,6 +558,7 @@ fn createTestPaths(allocator: Allocator) !fsutil.Paths {
         .cycle_log_dir = cycle_log_dir,
         .alerts_file = alerts_file,
         .history_dir = history_dir,
+        .ideas_dir = ideas_dir,
         .allocator = allocator,
     };
 }

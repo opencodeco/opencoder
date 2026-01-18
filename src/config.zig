@@ -122,6 +122,11 @@ pub const Config = struct {
             config.task_pause_seconds = std.fmt.parseInt(u64, val, 10) catch defaults.task_pause_seconds;
         }
 
+        // OPENCODER_VERBOSE
+        if (std.posix.getenv("OPENCODER_VERBOSE")) |val| {
+            config.verbose = std.mem.eql(u8, val, "1") or std.mem.eql(u8, val, "true") or std.mem.eql(u8, val, "yes");
+        }
+
         return config;
     }
 };
@@ -175,4 +180,9 @@ test "Config.defaults has expected values" {
     try std.testing.expectEqual(@as(u64, 2), config.task_pause_seconds);
     try std.testing.expectEqual(false, config.verbose);
     try std.testing.expectEqual(@as(?[]const u8, null), config.user_hint);
+}
+
+test "verbose flag is in Config struct" {
+    const config = Config.defaults;
+    _ = config.verbose;
 }

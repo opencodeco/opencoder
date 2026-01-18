@@ -346,7 +346,7 @@ pub const Executor = struct {
         return .failure;
     }
 
-    // Run opencode CLI and return output
+    // Run opencode CLI and return output with real-time stdout/stderr display
     fn runOpencode(self: *Executor, model: []const u8, title: []const u8, prompt: []const u8) ![]u8 {
         var args = std.ArrayListUnmanaged([]const u8){};
         defer args.deinit(self.allocator);
@@ -364,9 +364,9 @@ pub const Executor = struct {
         var child = std.process.Child.init(args.items, self.allocator);
         child.cwd = null; // Use current working directory
 
-        // Inherit stderr for opencode output, capture stdout for result checking
-        child.stderr_behavior = .Inherit;
+        // Capture both stdout and stderr for real-time display
         child.stdout_behavior = .Pipe;
+        child.stderr_behavior = .Pipe;
 
         // Create a new process group for the child so we can kill all descendants
         child.pgid = 0; // 0 means child creates its own process group
@@ -381,7 +381,7 @@ pub const Executor = struct {
             self.current_child_pgid = null;
         }
 
-        // Read stdout
+        // Read stdout and stderr in real-time, displaying output as it arrives
         var stdout_list = std.ArrayListUnmanaged(u8){};
 
         if (child.stdout) |stdout| {
@@ -393,6 +393,21 @@ pub const Executor = struct {
                     stdout_list.deinit(self.allocator);
                     return err;
                 };
+                // Display output in real-time
+                const chunk = buf[0..n];
+                self.log.logVerbose(chunk);
+            }
+        }
+
+        // Read stderr in real-time
+        if (child.stderr) |stderr| {
+            var buf: [4096]u8 = undefined;
+            while (true) {
+                const n = stderr.read(&buf) catch break;
+                if (n == 0) break;
+                // Display stderr output in real-time (prefixed to distinguish from stdout)
+                const chunk = buf[0..n];
+                self.log.logVerbose(chunk);
             }
         }
 
