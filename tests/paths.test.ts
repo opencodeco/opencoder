@@ -4,11 +4,13 @@ import { join } from "node:path"
 import {
 	AGENTS_TARGET_DIR,
 	checkVersionCompatibility,
+	createLogger,
 	getAgentsSourceDir,
 	getErrorMessage,
 	getPackageRoot,
 	isTransientError,
 	MIN_CONTENT_LENGTH,
+	parseCliFlags,
 	parseFrontmatter,
 	REQUIRED_FRONTMATTER_FIELDS,
 	REQUIRED_KEYWORDS,
@@ -758,6 +760,125 @@ This is a test agent that handles various tasks.
 				expect(checkVersionCompatibility("^", "1.0.0")).toBe(false)
 				expect(checkVersionCompatibility("", "1.0.0")).toBe(false)
 			})
+		})
+	})
+
+	describe("parseCliFlags", () => {
+		it("should return all false flags for empty argv", () => {
+			const result = parseCliFlags([])
+			expect(result).toEqual({ dryRun: false, verbose: false, help: false })
+		})
+
+		it("should return all false flags for argv without flags", () => {
+			const result = parseCliFlags(["node", "script.js"])
+			expect(result).toEqual({ dryRun: false, verbose: false, help: false })
+		})
+
+		it("should detect --dry-run flag", () => {
+			const result = parseCliFlags(["node", "script.js", "--dry-run"])
+			expect(result.dryRun).toBe(true)
+			expect(result.verbose).toBe(false)
+			expect(result.help).toBe(false)
+		})
+
+		it("should detect --verbose flag", () => {
+			const result = parseCliFlags(["node", "script.js", "--verbose"])
+			expect(result.dryRun).toBe(false)
+			expect(result.verbose).toBe(true)
+			expect(result.help).toBe(false)
+		})
+
+		it("should detect --help flag", () => {
+			const result = parseCliFlags(["node", "script.js", "--help"])
+			expect(result.dryRun).toBe(false)
+			expect(result.verbose).toBe(false)
+			expect(result.help).toBe(true)
+		})
+
+		it("should detect multiple flags", () => {
+			const result = parseCliFlags(["node", "script.js", "--dry-run", "--verbose"])
+			expect(result.dryRun).toBe(true)
+			expect(result.verbose).toBe(true)
+			expect(result.help).toBe(false)
+		})
+
+		it("should detect all flags", () => {
+			const result = parseCliFlags(["node", "script.js", "--dry-run", "--verbose", "--help"])
+			expect(result).toEqual({ dryRun: true, verbose: true, help: true })
+		})
+
+		it("should ignore unknown flags", () => {
+			const result = parseCliFlags(["node", "script.js", "--unknown", "--other"])
+			expect(result).toEqual({ dryRun: false, verbose: false, help: false })
+		})
+
+		it("should handle flags in any position", () => {
+			const result = parseCliFlags(["--verbose", "node", "--dry-run", "script.js", "--help"])
+			expect(result).toEqual({ dryRun: true, verbose: true, help: true })
+		})
+
+		it("should not match partial flag names", () => {
+			const result = parseCliFlags(["node", "script.js", "--dry-run-test", "--verbosity"])
+			expect(result.dryRun).toBe(false)
+			expect(result.verbose).toBe(false)
+		})
+	})
+
+	describe("createLogger", () => {
+		it("should return an object with log and verbose methods", () => {
+			const logger = createLogger(false)
+			expect(typeof logger.log).toBe("function")
+			expect(typeof logger.verbose).toBe("function")
+		})
+
+		it("should log messages with log() method", () => {
+			const originalLog = console.log
+			const messages: string[] = []
+			console.log = (msg: string) => messages.push(msg)
+
+			const logger = createLogger(false)
+			logger.log("test message")
+
+			console.log = originalLog
+			expect(messages).toContain("test message")
+		})
+
+		it("should not log verbose messages when verbose is false", () => {
+			const originalLog = console.log
+			const messages: string[] = []
+			console.log = (msg: string) => messages.push(msg)
+
+			const logger = createLogger(false)
+			logger.verbose("verbose message")
+
+			console.log = originalLog
+			expect(messages).toHaveLength(0)
+		})
+
+		it("should log verbose messages with [VERBOSE] prefix when verbose is true", () => {
+			const originalLog = console.log
+			const messages: string[] = []
+			console.log = (msg: string) => messages.push(msg)
+
+			const logger = createLogger(true)
+			logger.verbose("verbose message")
+
+			console.log = originalLog
+			expect(messages).toContain("[VERBOSE] verbose message")
+		})
+
+		it("should log both normal and verbose messages when verbose is true", () => {
+			const originalLog = console.log
+			const messages: string[] = []
+			console.log = (msg: string) => messages.push(msg)
+
+			const logger = createLogger(true)
+			logger.log("normal message")
+			logger.verbose("verbose message")
+
+			console.log = originalLog
+			expect(messages).toContain("normal message")
+			expect(messages).toContain("[VERBOSE] verbose message")
 		})
 	})
 })

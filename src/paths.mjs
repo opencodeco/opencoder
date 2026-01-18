@@ -405,3 +405,66 @@ export function checkVersionCompatibility(required, current) {
 	if (!rangeVersion) return false
 	return compareVersions(currentVersion, rangeVersion) === 0
 }
+
+/**
+ * Parses command line flags for install/uninstall scripts.
+ *
+ * Recognizes the following flags:
+ * - `--dry-run`: Simulate the operation without making changes
+ * - `--verbose`: Enable verbose logging output
+ * - `--help`: Display help information
+ *
+ * @param {string[]} argv - The command line arguments array (typically process.argv)
+ * @returns {{ dryRun: boolean, verbose: boolean, help: boolean }} Parsed flags
+ *
+ * @example
+ * // Parse process.argv
+ * const flags = parseCliFlags(process.argv)
+ * if (flags.help) {
+ *   console.log("Usage: ...")
+ *   process.exit(0)
+ * }
+ *
+ * @example
+ * // Parse custom arguments
+ * const flags = parseCliFlags(["node", "script.js", "--verbose", "--dry-run"])
+ * // flags = { dryRun: true, verbose: true, help: false }
+ */
+export function parseCliFlags(argv) {
+	return {
+		dryRun: argv.includes("--dry-run"),
+		verbose: argv.includes("--verbose"),
+		help: argv.includes("--help"),
+	}
+}
+
+/**
+ * Creates a logger object with standard and verbose logging methods.
+ *
+ * The logger provides two methods:
+ * - `log(message)`: Always logs to console.log
+ * - `verbose(message)`: Only logs when verbose mode is enabled, prefixed with [VERBOSE]
+ *
+ * @param {boolean} verbose - Whether verbose logging is enabled
+ * @returns {{ log: (message: string) => void, verbose: (message: string) => void }} Logger object
+ *
+ * @example
+ * const logger = createLogger(true)
+ * logger.log("Installing agents...")     // Always prints
+ * logger.verbose("Source: /path/to/src") // Prints: [VERBOSE] Source: /path/to/src
+ *
+ * @example
+ * const logger = createLogger(false)
+ * logger.log("Installing agents...")     // Prints
+ * logger.verbose("Source: /path/to/src") // Does nothing (verbose disabled)
+ */
+export function createLogger(verbose) {
+	return {
+		log: (message) => console.log(message),
+		verbose: (message) => {
+			if (verbose) {
+				console.log(`[VERBOSE] ${message}`)
+			}
+		},
+	}
+}

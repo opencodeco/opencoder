@@ -116,3 +116,50 @@ export function validateAgentContent(content: string): ValidateAgentContentResul
  * @returns True if current version satisfies the required range
  */
 export function checkVersionCompatibility(required: string, current: string): boolean
+
+/**
+ * Parsed command line flags for install/uninstall scripts.
+ */
+export interface CliFlags {
+	/** Simulate the operation without making changes */
+	dryRun: boolean
+	/** Enable verbose logging output */
+	verbose: boolean
+	/** Display help information */
+	help: boolean
+}
+
+/**
+ * Parses command line flags for install/uninstall scripts.
+ *
+ * Recognizes the following flags:
+ * - `--dry-run`: Simulate the operation without making changes
+ * - `--verbose`: Enable verbose logging output
+ * - `--help`: Display help information
+ *
+ * @param argv - The command line arguments array (typically process.argv)
+ * @returns Parsed flags object
+ */
+export function parseCliFlags(argv: string[]): CliFlags
+
+/**
+ * Logger object with standard and verbose logging methods.
+ */
+export interface Logger {
+	/** Log a message to console */
+	log: (message: string) => void
+	/** Log a verbose message (only when verbose mode is enabled) */
+	verbose: (message: string) => void
+}
+
+/**
+ * Creates a logger object with standard and verbose logging methods.
+ *
+ * The logger provides two methods:
+ * - `log(message)`: Always logs to console.log
+ * - `verbose(message)`: Only logs when verbose mode is enabled, prefixed with [VERBOSE]
+ *
+ * @param verbose - Whether verbose logging is enabled
+ * @returns Logger object
+ */
+export function createLogger(verbose: boolean): Logger

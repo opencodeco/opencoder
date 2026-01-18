@@ -12,9 +12,11 @@ import { join } from "node:path"
 
 import {
 	AGENTS_TARGET_DIR,
+	createLogger,
 	getAgentsSourceDir,
 	getErrorMessage,
 	getPackageRoot,
+	parseCliFlags,
 	retryOnTransientError,
 	validateAgentContent,
 } from "./src/paths.mjs"
@@ -22,21 +24,14 @@ import {
 const packageRoot = getPackageRoot(import.meta.url)
 const AGENTS_SOURCE_DIR = getAgentsSourceDir(packageRoot)
 
-/** Check for --dry-run flag in command line arguments */
-const DRY_RUN = process.argv.includes("--dry-run")
+/** Parse command line flags */
+const flags = parseCliFlags(process.argv)
+const DRY_RUN = flags.dryRun
+const VERBOSE = flags.verbose
 
-/** Check for --verbose flag in command line arguments */
-const VERBOSE = process.argv.includes("--verbose")
-
-/**
- * Logs verbose output if --verbose flag is set.
- * @param {string} message - The message to log
- */
-function verbose(message) {
-	if (VERBOSE) {
-		console.log(`[VERBOSE] ${message}`)
-	}
-}
+/** Create logger with verbose flag */
+const logger = createLogger(VERBOSE)
+const verbose = logger.verbose
 
 /**
  * Validates an agent file by reading and validating its content.
