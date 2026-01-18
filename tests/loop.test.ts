@@ -8,6 +8,7 @@ import { join } from "node:path"
 import { Logger } from "../src/logger.ts"
 import {
 	archivePlan,
+	calculateBackoff,
 	isShutdownRequested,
 	logStartupInfo,
 	requestShutdown,
@@ -44,6 +45,9 @@ function createTestConfig(overrides?: Partial<Config>): Config {
 		backoffBase: 10,
 		logRetention: 30,
 		taskPauseSeconds: 2,
+		autoCommit: true,
+		autoPush: true,
+		commitSignoff: false,
 		...overrides,
 	}
 }
@@ -114,6 +118,55 @@ describe("loop", () => {
 		test("returns a promise", () => {
 			const result = sleep(1)
 			expect(result).toBeInstanceOf(Promise)
+		})
+	})
+
+	describe("calculateBackoff", () => {
+		test("first retry uses base delay", () => {
+			const delay = calculateBackoff(1, 10)
+			// Base is 10 seconds = 10000ms, with up to 20% jitter
+			expect(delay).toBeGreaterThanOrEqual(10000)
+			expect(delay).toBeLessThanOrEqual(12000)
+		})
+
+		test("second retry doubles delay", () => {
+			const delay = calculateBackoff(2, 10)
+			// 10 * 2^1 = 20 seconds, with jitter
+			expect(delay).toBeGreaterThanOrEqual(20000)
+			expect(delay).toBeLessThanOrEqual(24000)
+		})
+
+		test("third retry quadruples delay", () => {
+			const delay = calculateBackoff(3, 10)
+			// 10 * 2^2 = 40 seconds, with jitter
+			expect(delay).toBeGreaterThanOrEqual(40000)
+			expect(delay).toBeLessThanOrEqual(48000)
+		})
+
+		test("caps at 5 minutes maximum", () => {
+			const delay = calculateBackoff(10, 10)
+			// Should cap at 300 seconds (5 min), with jitter
+			expect(delay).toBeGreaterThanOrEqual(300000)
+			expect(delay).toBeLessThanOrEqual(360000)
+		})
+
+		test("works with different base values", () => {
+			const delay = calculateBackoff(1, 5)
+			// Base is 5 seconds = 5000ms, with jitter
+			expect(delay).toBeGreaterThanOrEqual(5000)
+			expect(delay).toBeLessThanOrEqual(6000)
+		})
+
+		test("returns milliseconds", () => {
+			const delay = calculateBackoff(1, 1)
+			// 1 second base = ~1000-1200ms with jitter
+			expect(delay).toBeGreaterThanOrEqual(1000)
+			expect(delay).toBeLessThanOrEqual(1200)
+		})
+
+		test("is non-negative", () => {
+			const delay = calculateBackoff(1, 0)
+			expect(delay).toBeGreaterThanOrEqual(0)
 		})
 	})
 

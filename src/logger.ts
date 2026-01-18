@@ -117,6 +117,16 @@ export class Logger {
 	}
 
 	/**
+	 * Log a critical alert - always written to alerts file and shown prominently
+	 */
+	alert(message: string): void {
+		const formatted = `[ALERT] ${message}`
+		console.error(`${ANSI.red}${ANSI.bold}${formatted}${ANSI.reset}`)
+		this.writeToBuffer(this.formatForFile(formatted))
+		this.writeToAlerts(formatted)
+	}
+
+	/**
 	 * Log only if verbose mode enabled
 	 */
 	logVerbose(message: string): void {

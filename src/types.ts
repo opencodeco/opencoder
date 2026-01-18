@@ -49,6 +49,10 @@ export interface State {
 	currentIdeaPath?: string
 	/** Filename of the idea currently being processed (for display) */
 	currentIdeaFilename?: string
+	/** Number of consecutive failures in current phase */
+	retryCount: number
+	/** ISO timestamp of last error (for backoff calculation) */
+	lastErrorTime?: string
 }
 
 /** Runtime state with additional non-persisted fields */

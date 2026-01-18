@@ -149,5 +149,77 @@ describe("state", () => {
 			expect(newState.taskIndex).toBe(0)
 			expect(newState.totalTasks).toBe(0)
 		})
+
+		test("resets retry count", () => {
+			const newState = newCycleState(5)
+
+			expect(newState.retryCount).toBe(0)
+			expect(newState.lastErrorTime).toBeUndefined()
+		})
+	})
+
+	describe("retryCount tracking", () => {
+		test("loadState returns default retryCount of 0", async () => {
+			const stateFile = join(TEST_DIR, "nonexistent.json")
+			const state = await loadState(stateFile)
+
+			expect(state.retryCount).toBe(0)
+		})
+
+		test("loadState preserves retryCount from file", async () => {
+			const stateFile = join(TEST_DIR, "retry-state.json")
+			const savedState = {
+				cycle: 1,
+				phase: "build",
+				taskIndex: 0,
+				retryCount: 2,
+				lastErrorTime: "2024-01-01T00:00:00Z",
+			}
+			await Bun.write(stateFile, JSON.stringify(savedState))
+
+			const state = await loadState(stateFile)
+
+			expect(state.retryCount).toBe(2)
+			expect(state.lastErrorTime).toBe("2024-01-01T00:00:00Z")
+		})
+
+		test("saveState persists retryCount", async () => {
+			const stateFile = join(TEST_DIR, "save-retry.json")
+			const state = {
+				cycle: 1,
+				phase: "build" as const,
+				taskIndex: 0,
+				totalTasks: 3,
+				currentTaskNum: 1,
+				currentTaskDesc: "Test",
+				lastUpdate: "",
+				retryCount: 3,
+				lastErrorTime: "2024-01-01T12:00:00Z",
+			}
+
+			await saveState(stateFile, state)
+
+			const content = await Bun.file(stateFile).text()
+			const saved = JSON.parse(content)
+
+			expect(saved.retryCount).toBe(3)
+			expect(saved.lastErrorTime).toBe("2024-01-01T12:00:00Z")
+		})
+
+		test("invalid retryCount defaults to 0", async () => {
+			const stateFile = join(TEST_DIR, "invalid-retry.json")
+			await Bun.write(stateFile, JSON.stringify({ cycle: 1, retryCount: -1 }))
+
+			const state = await loadState(stateFile)
+
+			expect(state.retryCount).toBe(0)
+		})
+
+		test("resetState clears retryCount", () => {
+			const state = resetState()
+
+			expect(state.retryCount).toBe(0)
+			expect(state.lastErrorTime).toBeUndefined()
+		})
 	})
 })

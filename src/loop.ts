@@ -12,6 +12,7 @@ import { Builder } from "./builder.ts"
 import { extractEvaluationReason, isComplete, parseEvaluation } from "./evaluator.ts"
 import {
 	ensureDirectories,
+	getISOTimestamp,
 	getTimestampForFilename,
 	initializePaths,
 	readFileOrNull,
@@ -87,14 +88,48 @@ export async function runLoop(config: Config): Promise<void> {
 						await runEvaluationPhase(state, builder, paths, logger, config)
 						break
 				}
-			} catch (err) {
-				logger.logError(`Error in ${state.phase} phase: ${err}`)
 
-				// Retry with backoff
-				if (!shutdownRequested) {
-					const backoffMs = config.backoffBase * 1000
-					logger.say(`Retrying in ${config.backoffBase} seconds...`)
-					await sleep(backoffMs)
+				// Success - reset retry count
+				state.retryCount = 0
+				state.lastErrorTime = undefined
+			} catch (err) {
+				// Track the error
+				state.retryCount++
+				state.lastErrorTime = getISOTimestamp()
+
+				logger.logError(
+					`Error in ${state.phase} phase (attempt ${state.retryCount}/${config.maxRetries}): ${err}`,
+				)
+
+				// Check if we've exceeded max retries
+				if (state.retryCount >= config.maxRetries) {
+					logger.logError(`Max retries (${config.maxRetries}) exceeded for ${state.phase} phase`)
+					logger.alert(`CRITICAL: ${state.phase} phase failed after ${config.maxRetries} attempts`)
+
+					// Reset retry count and move to next phase or skip task
+					state.retryCount = 0
+					state.lastErrorTime = undefined
+
+					if (state.phase === "build") {
+						// Skip the failed task and continue
+						logger.warn("Skipping failed task and continuing...")
+						await skipCurrentTask(state, paths, logger)
+					} else if (state.phase === "plan") {
+						// Clear any stuck idea and retry planning
+						state.currentIdeaPath = undefined
+						state.currentIdeaFilename = undefined
+						logger.warn("Clearing idea state and retrying plan phase...")
+					}
+					// For evaluation, just retry - it will eventually succeed or the user will intervene
+				} else {
+					// Retry with exponential backoff
+					const backoffMs = calculateBackoff(state.retryCount, config.backoffBase)
+					const backoffSec = Math.round(backoffMs / 1000)
+					logger.say(`Retrying in ${backoffSec} seconds...`)
+
+					if (!shutdownRequested) {
+						await sleep(backoffMs)
+					}
 				}
 			}
 
@@ -458,6 +493,71 @@ export async function archivePlan(paths: Paths, cycle: number, logger: Logger): 
  */
 export function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Calculate exponential backoff with jitter.
+ * @param retryCount - Current retry attempt (1-based)
+ * @param baseSeconds - Base delay in seconds
+ * @returns Delay in milliseconds
+ */
+export function calculateBackoff(retryCount: number, baseSeconds: number): number {
+	// Exponential backoff: base * 2^(retry-1) with max of 5 minutes
+	const exponentialDelay = baseSeconds * 2 ** (retryCount - 1)
+	const cappedDelay = Math.min(exponentialDelay, 300) // Max 5 minutes
+
+	// Add jitter (up to 20% randomness) to prevent thundering herd
+	const jitter = cappedDelay * 0.2 * Math.random()
+
+	return Math.round((cappedDelay + jitter) * 1000)
+}
+
+/**
+ * Skip the current task in build phase when it has failed too many times.
+ * Marks the task as completed (with a note) and moves to the next task.
+ */
+async function skipCurrentTask(state: RuntimeState, paths: Paths, logger: Logger): Promise<void> {
+	const planContent = await readFileOrNull(paths.currentPlan)
+	if (!planContent) return
+
+	const uncompletedTasks = getUncompletedTasks(planContent)
+
+	if (uncompletedTasks.length === 0) {
+		state.phase = "evaluation"
+		return
+	}
+
+	const currentTask = uncompletedTasks[0]
+	if (!currentTask) {
+		state.phase = "evaluation"
+		return
+	}
+
+	// Mark task as completed (even though it failed - to allow progress)
+	const updatedPlan = markTaskComplete(planContent, currentTask.lineNumber)
+
+	// Add a note about the skipped task
+	const noteComment = `<!-- SKIPPED: Task failed after max retries -->`
+	const planWithNote = updatedPlan.replace(
+		new RegExp(`(- \\[x\\] ${escapeRegExp(currentTask.description)})`),
+		`$1 ${noteComment}`,
+	)
+
+	await writeFile(paths.currentPlan, planWithNote)
+	logger.warn(`Skipped failed task: ${currentTask.description}`)
+
+	// Check if this was the last task
+	const remainingTasks = getUncompletedTasks(planWithNote)
+	if (remainingTasks.length === 0) {
+		state.phase = "evaluation"
+	}
+}
+
+/**
+ * Escape special regex characters in a string.
+ */
+function escapeRegExp(str: string): string {
+	return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
 /**

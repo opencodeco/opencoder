@@ -13,6 +13,8 @@ const DEFAULT_STATE: State = {
 	lastUpdate: "",
 	currentIdeaPath: undefined,
 	currentIdeaFilename: undefined,
+	retryCount: 0,
+	lastErrorTime: undefined,
 }
 
 /**
@@ -57,6 +59,14 @@ export async function loadState(stateFile: string): Promise<RuntimeState> {
 			)
 		}
 
+		// Validate retryCount is a non-negative number
+		if (
+			parsed.retryCount !== undefined &&
+			(typeof parsed.retryCount !== "number" || parsed.retryCount < 0)
+		) {
+			parsed.retryCount = DEFAULT_STATE.retryCount
+		}
+
 		// Merge with defaults to handle missing fields
 		const state: State = {
 			cycle: parsed.cycle ?? DEFAULT_STATE.cycle,
@@ -66,6 +76,8 @@ export async function loadState(stateFile: string): Promise<RuntimeState> {
 			lastUpdate: parsed.lastUpdate ?? DEFAULT_STATE.lastUpdate,
 			currentIdeaPath: parsed.currentIdeaPath,
 			currentIdeaFilename: parsed.currentIdeaFilename,
+			retryCount: parsed.retryCount ?? DEFAULT_STATE.retryCount,
+			lastErrorTime: parsed.lastErrorTime,
 		}
 
 		return toRuntimeState(state)
@@ -100,6 +112,8 @@ export async function saveState(stateFile: string, state: RuntimeState): Promise
 		lastUpdate: getISOTimestamp(),
 		currentIdeaPath: state.currentIdeaPath,
 		currentIdeaFilename: state.currentIdeaFilename,
+		retryCount: state.retryCount,
+		lastErrorTime: state.lastErrorTime,
 	}
 
 	const content = JSON.stringify(persistedState, null, 2)
@@ -156,5 +170,7 @@ export function newCycleState(currentCycle: number): Partial<RuntimeState> {
 		currentTaskDesc: "",
 		currentIdeaPath: undefined,
 		currentIdeaFilename: undefined,
+		retryCount: 0,
+		lastErrorTime: undefined,
 	}
 }
