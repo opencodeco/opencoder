@@ -1118,5 +1118,109 @@ This is a test agent that handles various tasks.
 			expect(messages).toContain("normal message")
 			expect(messages).toContain("[VERBOSE] verbose message")
 		})
+
+		it("should log empty strings with log() method", () => {
+			const originalLog = console.log
+			const messages: string[] = []
+			console.log = (msg: string) => messages.push(msg)
+
+			const logger = createLogger(false)
+			logger.log("")
+
+			console.log = originalLog
+			expect(messages).toHaveLength(1)
+			expect(messages[0]).toBe("")
+		})
+
+		it("should log empty strings with verbose() method when verbose is true", () => {
+			const originalLog = console.log
+			const messages: string[] = []
+			console.log = (msg: string) => messages.push(msg)
+
+			const logger = createLogger(true)
+			logger.verbose("")
+
+			console.log = originalLog
+			expect(messages).toHaveLength(1)
+			expect(messages[0]).toBe("[VERBOSE] ")
+		})
+
+		it("should handle messages with newline characters", () => {
+			const originalLog = console.log
+			const messages: string[] = []
+			console.log = (msg: string) => messages.push(msg)
+
+			const logger = createLogger(true)
+			logger.log("line1\nline2\nline3")
+			logger.verbose("verbose\nwith\nnewlines")
+
+			console.log = originalLog
+			expect(messages[0]).toBe("line1\nline2\nline3")
+			expect(messages[1]).toBe("[VERBOSE] verbose\nwith\nnewlines")
+		})
+
+		it("should handle messages with tab characters", () => {
+			const originalLog = console.log
+			const messages: string[] = []
+			console.log = (msg: string) => messages.push(msg)
+
+			const logger = createLogger(true)
+			logger.log("column1\tcolumn2\tcolumn3")
+			logger.verbose("verbose\twith\ttabs")
+
+			console.log = originalLog
+			expect(messages[0]).toBe("column1\tcolumn2\tcolumn3")
+			expect(messages[1]).toBe("[VERBOSE] verbose\twith\ttabs")
+		})
+
+		it("should handle messages with mixed special characters", () => {
+			const originalLog = console.log
+			const messages: string[] = []
+			console.log = (msg: string) => messages.push(msg)
+
+			const logger = createLogger(true)
+			const specialMessage = "header\n\tindented\n\t\tdouble-indented\nback"
+			logger.log(specialMessage)
+			logger.verbose(specialMessage)
+
+			console.log = originalLog
+			expect(messages[0]).toBe(specialMessage)
+			expect(messages[1]).toBe(`[VERBOSE] ${specialMessage}`)
+		})
+
+		it("should use exact '[VERBOSE] ' prefix format with single space after bracket", () => {
+			const originalLog = console.log
+			const messages: string[] = []
+			console.log = (msg: string) => messages.push(msg)
+
+			const logger = createLogger(true)
+			logger.verbose("test")
+
+			console.log = originalLog
+			// Verify exact prefix format: [VERBOSE] followed by exactly one space
+			expect(messages[0]).toMatch(/^\[VERBOSE\] /)
+			expect(messages[0]).toBe("[VERBOSE] test")
+			// Ensure no extra spaces or different formatting
+			expect(messages[0]).not.toMatch(/^\[VERBOSE\] {2}/) // Not two spaces
+			expect(messages[0]).not.toMatch(/^\[verbose\]/) // Not lowercase
+			expect(messages[0]).not.toMatch(/^VERBOSE:/) // Not colon format
+		})
+
+		it("should preserve the exact prefix format for various message types", () => {
+			const originalLog = console.log
+			const messages: string[] = []
+			console.log = (msg: string) => messages.push(msg)
+
+			const logger = createLogger(true)
+			logger.verbose("simple")
+			logger.verbose("  leading spaces")
+			logger.verbose("trailing spaces  ")
+
+			console.log = originalLog
+			// All messages should have exactly "[VERBOSE] " prefix
+			expect(messages[0]).toBe("[VERBOSE] simple")
+			expect(messages[1]).toBe("[VERBOSE]   leading spaces")
+			expect(messages[2]).toBe("[VERBOSE] trailing spaces  ")
+		})
 	})
 })
