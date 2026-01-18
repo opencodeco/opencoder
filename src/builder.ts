@@ -7,7 +7,7 @@ import { parseModel } from "./config.ts"
 import type { Logger } from "./logger.ts"
 import {
 	extractPlanFromResponse,
-	generateEvaluationPrompt,
+	generateEvalPrompt,
 	generateIdeaPlanPrompt,
 	generateIdeaSelectionPrompt,
 	generatePlanPrompt,
@@ -319,16 +319,16 @@ export class Builder {
 	}
 
 	/**
-	 * Run the evaluation phase
+	 * Run the eval phase
 	 */
-	async runEvaluation(cycle: number, planContent: string): Promise<string> {
+	async runEval(cycle: number, planContent: string): Promise<string> {
 		this.logger.phase("Evaluating", `Cycle ${cycle}`)
 
 		if (!this.sessionId) {
 			throw new Error("No active session")
 		}
 
-		const prompt = generateEvaluationPrompt(cycle, planContent)
+		const prompt = generateEvalPrompt(cycle, planContent)
 
 		return await this.sendPrompt(prompt, this.config.planModel, "Evaluating")
 	}
