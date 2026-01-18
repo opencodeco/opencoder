@@ -7,7 +7,7 @@ import { loadConfig } from "./config.ts"
 import { runLoop } from "./loop.ts"
 import type { CliOptions } from "./types.ts"
 
-const VERSION = "1.0.0"
+const VERSION = "0.1.0"
 
 /**
  * Parse CLI arguments and run the application
