@@ -7,13 +7,16 @@
   "files": [
     "src/",
     "agents/",
-    "postinstall.mjs"
+    "postinstall.mjs",
+    "preuninstall.mjs"
   ],
   "scripts": {
     "postinstall": "node postinstall.mjs",
-    "lint": "bunx biome check src/",
-    "lint:fix": "bunx biome check --write src/",
-    "format": "bunx biome format --write src/"
+    "preuninstall": "node preuninstall.mjs",
+    "test": "bun test",
+    "lint": "bunx biome check .",
+    "lint:fix": "bunx biome check --write .",
+    "format": "bunx biome format --write ."
   },
   "repository": {
     "type": "git",
@@ -40,5 +43,10 @@
   },
   "peerDependencies": {
     "opencode": ">=0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "opencode": {
+      "optional": true
+    }
   }
 }
