@@ -78,7 +78,8 @@ function main() {
 			copyFileSync(sourcePath, targetPath)
 			successes.push(file)
 			console.log(`  Installed: ${file}`)
-		} catch (error) {
+		} catch (err) {
+			const error = err instanceof Error ? err : new Error(String(err))
 			const message = getErrorMessage(error, file, targetPath)
 			failures.push({ file, message })
 			console.error(`  Failed: ${file} - ${message}`)

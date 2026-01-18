@@ -51,7 +51,8 @@ function main() {
 				console.log(`  Removed: ${file}`)
 				removedCount++
 			} catch (err) {
-				console.error(`  Warning: Could not remove ${file}: ${err.message}`)
+				const message = err instanceof Error ? err.message : String(err)
+				console.error(`  Warning: Could not remove ${file}: ${message}`)
 			}
 		}
 	}
