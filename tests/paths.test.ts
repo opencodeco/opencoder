@@ -355,13 +355,15 @@ describe("paths.mjs exports", () => {
 			expect(callCount).toBe(2)
 		})
 
-		it("should use default delay of 100ms", async () => {
+		it("should use exponential backoff with default initial delay of 100ms", async () => {
 			let callCount = 0
+			const timestamps: number[] = []
 			const start = Date.now()
 			await retryOnTransientError(
 				() => {
+					timestamps.push(Date.now() - start)
 					callCount++
-					if (callCount < 3) {
+					if (callCount < 4) {
 						const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
 						throw err
 					}
@@ -369,12 +371,49 @@ describe("paths.mjs exports", () => {
 				},
 				{ retries: 3 },
 			)
+			// 3 retries with exponential backoff: 100ms, 200ms, 400ms = 700ms total
 			const elapsed = Date.now() - start
-			// Should have at least 2 delays of ~100ms each
-			expect(elapsed).toBeGreaterThanOrEqual(150)
+			expect(elapsed).toBeGreaterThanOrEqual(600) // Allow some timing variance
+			expect(elapsed).toBeLessThan(1000) // Should not be too long
 		})
 
-		it("should respect custom delay option", async () => {
+		it("should double delay on each retry (exponential backoff)", async () => {
+			const delays: number[] = []
+			let lastTimestamp = Date.now()
+			let callCount = 0
+
+			await retryOnTransientError(
+				() => {
+					const now = Date.now()
+					if (callCount > 0) {
+						delays.push(now - lastTimestamp)
+					}
+					lastTimestamp = now
+					callCount++
+					if (callCount < 4) {
+						const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+						throw err
+					}
+					return "success"
+				},
+				{ retries: 3, initialDelayMs: 50 },
+			)
+
+			// With initialDelayMs=50, delays should be approximately: 50, 100, 200
+			expect(delays).toHaveLength(3)
+			// Verify each delay is approximately double the previous (with tolerance)
+			// First delay should be ~50ms
+			expect(delays[0]).toBeGreaterThanOrEqual(40)
+			expect(delays[0]).toBeLessThan(100)
+			// Second delay should be ~100ms (2x first)
+			expect(delays[1]).toBeGreaterThanOrEqual(80)
+			expect(delays[1]).toBeLessThan(180)
+			// Third delay should be ~200ms (2x second)
+			expect(delays[2]).toBeGreaterThanOrEqual(160)
+			expect(delays[2]).toBeLessThan(320)
+		})
+
+		it("should respect custom initialDelayMs option", async () => {
 			let callCount = 0
 			const start = Date.now()
 			await retryOnTransientError(
@@ -386,7 +425,7 @@ describe("paths.mjs exports", () => {
 					}
 					return "success"
 				},
-				{ delayMs: 50 },
+				{ initialDelayMs: 50 },
 			)
 			const elapsed = Date.now() - start
 			// Should have 1 delay of ~50ms

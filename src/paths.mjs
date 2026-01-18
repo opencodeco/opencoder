@@ -121,30 +121,31 @@ function delay(ms) {
 }
 
 /**
- * Retries a function on transient filesystem errors.
+ * Retries a function on transient filesystem errors with exponential backoff.
  *
  * If the function throws a transient error (EAGAIN, EBUSY), it will be retried
- * up to the specified number of times with a delay between attempts.
+ * up to the specified number of times with exponentially increasing delays
+ * between attempts (e.g., 100ms, 200ms, 400ms).
  *
  * @template T
  * @param {() => T | Promise<T>} fn - The function to execute
- * @param {{ retries?: number, delayMs?: number }} [options] - Retry options
+ * @param {{ retries?: number, initialDelayMs?: number }} [options] - Retry options
  * @returns {Promise<T>} The result of the function
  * @throws {Error} The last error if all retries fail
  *
  * @example
- * // Retry a file copy operation
+ * // Retry a file copy operation (delays: 100ms, 200ms, 400ms)
  * await retryOnTransientError(() => copyFileSync(src, dest))
  *
  * @example
- * // Custom retry options
+ * // Custom retry options (delays: 50ms, 100ms, 200ms, 400ms, 800ms)
  * await retryOnTransientError(
  *   () => unlinkSync(path),
- *   { retries: 5, delayMs: 200 }
+ *   { retries: 5, initialDelayMs: 50 }
  * )
  */
 export async function retryOnTransientError(fn, options = {}) {
-	const { retries = 3, delayMs = 100 } = options
+	const { retries = 3, initialDelayMs = 100 } = options
 	let lastError
 
 	for (let attempt = 0; attempt <= retries; attempt++) {
@@ -159,8 +160,9 @@ export async function retryOnTransientError(fn, options = {}) {
 				throw err
 			}
 
-			// Wait before retrying
-			await delay(delayMs)
+			// Calculate exponential backoff delay: initialDelayMs * 2^attempt
+			const backoffDelay = initialDelayMs * 2 ** attempt
+			await delay(backoffDelay)
 		}
 	}
 

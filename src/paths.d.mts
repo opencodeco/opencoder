@@ -79,31 +79,32 @@ export function isTransientError(error: Error & { code?: string }): boolean
 export interface RetryOptions {
 	/** Number of retry attempts (default: 3) */
 	retries?: number
-	/** Delay between retries in milliseconds (default: 100) */
-	delayMs?: number
+	/** Initial delay in milliseconds, doubles on each retry (default: 100) */
+	initialDelayMs?: number
 }
 
 /**
- * Retries a function on transient filesystem errors.
+ * Retries a function on transient filesystem errors with exponential backoff.
  *
  * If the function throws a transient error (EAGAIN, EBUSY), it will be retried
- * up to the specified number of times with a delay between attempts.
+ * up to the specified number of times with exponentially increasing delays
+ * between attempts (e.g., 100ms, 200ms, 400ms).
  *
  * @template T - The return type of the function
  * @param fn - The function to execute
- * @param options - Retry options (retries, delayMs)
+ * @param options - Retry options (retries, initialDelayMs)
  * @returns The result of the function
  * @throws The last error if all retries fail
  *
  * @example
- * // Retry a file copy operation
+ * // Retry a file copy operation (delays: 100ms, 200ms, 400ms)
  * await retryOnTransientError(() => copyFileSync(src, dest))
  *
  * @example
- * // Custom retry options
+ * // Custom retry options (delays: 50ms, 100ms, 200ms, 400ms, 800ms)
  * await retryOnTransientError(
  *   () => unlinkSync(path),
- *   { retries: 5, delayMs: 200 }
+ *   { retries: 5, initialDelayMs: 50 }
  * )
  */
 export function retryOnTransientError<T>(
