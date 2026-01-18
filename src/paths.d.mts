@@ -2,6 +2,14 @@
  * Type declarations for paths.mjs
  */
 
+// Re-export semver types for backwards compatibility
+export {
+	type ParsedVersion,
+	checkVersionCompatibility,
+	compareVersions,
+	parseVersion,
+} from "./semver.mjs"
+
 /** Minimum character count for valid agent files */
 export declare const MIN_CONTENT_LENGTH: number
 
@@ -157,31 +165,6 @@ export interface ValidateAgentContentResult {
  * @returns Validation result with valid status and optional error message
  */
 export function validateAgentContent(content: string): ValidateAgentContentResult
-
-/**
- * Checks if a version satisfies a semver range requirement.
- *
- * Supports common semver range patterns:
- * - Exact version: "1.0.0" (must match exactly)
- * - Greater than or equal: ">=1.0.0"
- * - Greater than: ">1.0.0"
- * - Less than or equal: "<=1.0.0"
- * - Less than: "<1.0.0"
- * - Caret (compatible with): "^1.0.0" (>=1.0.0 and <2.0.0)
- * - Tilde (approximately): "~1.2.0" (>=1.2.0 and <1.3.0)
- *
- * @param required - The required version range (e.g., ">=0.1.0", "^1.0.0")
- * @param current - The current version to check (e.g., "1.2.3")
- * @returns True if current version satisfies the required range
- *
- * @example
- * checkVersionCompatibility(">=0.1.0", "0.2.0")  // true
- * checkVersionCompatibility("^1.0.0", "1.5.0")  // true
- * checkVersionCompatibility("^1.0.0", "2.0.0")  // false
- * checkVersionCompatibility("~1.2.0", "1.2.5")  // true
- * checkVersionCompatibility("~1.2.0", "1.3.0")  // false
- */
-export function checkVersionCompatibility(required: string, current: string): boolean
 
 /**
  * Parsed command line flags for install/uninstall scripts.

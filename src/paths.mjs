@@ -9,6 +9,13 @@ import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
+// Re-export semver utilities for backwards compatibility
+export {
+	checkVersionCompatibility,
+	compareVersions,
+	parseVersion,
+} from "./semver.mjs"
+
 /** Minimum character count for valid agent files */
 export const MIN_CONTENT_LENGTH = 100
 
@@ -301,146 +308,6 @@ export function validateAgentContent(content) {
 	}
 
 	return { valid: true }
-}
-
-/**
- * Parses a semver version string into its numeric components.
- *
- * @param {string} version - The version string (e.g., "1.2.3")
- * @returns {{ major: number, minor: number, patch: number } | null} Parsed version or null if invalid
- */
-function parseVersion(version) {
-	const match = version.match(/^(\d+)\.(\d+)\.(\d+)$/)
-	if (!match) return null
-	return {
-		major: Number.parseInt(match[1], 10),
-		minor: Number.parseInt(match[2], 10),
-		patch: Number.parseInt(match[3], 10),
-	}
-}
-
-/**
- * Compares two parsed version objects.
- *
- * @param {{ major: number, minor: number, patch: number }} a - First version
- * @param {{ major: number, minor: number, patch: number }} b - Second version
- * @returns {number} -1 if a < b, 0 if a == b, 1 if a > b
- */
-function compareVersions(a, b) {
-	if (a.major !== b.major) return a.major < b.major ? -1 : 1
-	if (a.minor !== b.minor) return a.minor < b.minor ? -1 : 1
-	if (a.patch !== b.patch) return a.patch < b.patch ? -1 : 1
-	return 0
-}
-
-/**
- * Checks if a version satisfies a semver range requirement.
- *
- * Supports common semver range patterns:
- * - Exact version: "1.0.0" (must match exactly)
- * - Greater than or equal: ">=1.0.0"
- * - Greater than: ">1.0.0"
- * - Less than or equal: "<=1.0.0"
- * - Less than: "<1.0.0"
- * - Caret (compatible with): "^1.0.0" (>=1.0.0 and <2.0.0)
- * - Tilde (approximately): "~1.2.0" (>=1.2.0 and <1.3.0)
- *
- * @param {string} required - The required version range (e.g., ">=0.1.0", "^1.0.0")
- * @param {string} current - The current version to check (e.g., "1.2.3")
- * @returns {boolean} True if current version satisfies the required range
- *
- * @example
- * checkVersionCompatibility(">=0.1.0", "0.2.0")  // true
- * checkVersionCompatibility("^1.0.0", "1.5.0")  // true
- * checkVersionCompatibility("^1.0.0", "2.0.0")  // false
- * checkVersionCompatibility("~1.2.0", "1.2.5")  // true
- * checkVersionCompatibility("~1.2.0", "1.3.0")  // false
- * @throws {TypeError} If required or current is not a non-empty string
- */
-export function checkVersionCompatibility(required, current) {
-	if (typeof required !== "string") {
-		throw new TypeError(
-			`checkVersionCompatibility: required must be a string, got ${required === null ? "null" : typeof required}`,
-		)
-	}
-	if (required.trim() === "") {
-		throw new TypeError("checkVersionCompatibility: required must not be empty")
-	}
-	if (typeof current !== "string") {
-		throw new TypeError(
-			`checkVersionCompatibility: current must be a string, got ${current === null ? "null" : typeof current}`,
-		)
-	}
-	if (current.trim() === "") {
-		throw new TypeError("checkVersionCompatibility: current must not be empty")
-	}
-	const currentVersion = parseVersion(current)
-	if (!currentVersion) return false
-
-	// Handle caret range: ^1.0.0 means >=1.0.0 and <2.0.0 (for major >= 1)
-	// For ^0.x.y, it means >=0.x.y and <0.(x+1).0
-	if (required.startsWith("^")) {
-		const rangeVersion = parseVersion(required.slice(1))
-		if (!rangeVersion) return false
-
-		// Must be >= the specified version
-		if (compareVersions(currentVersion, rangeVersion) < 0) return false
-
-		// For major version 0, only minor version must match
-		if (rangeVersion.major === 0) {
-			return currentVersion.major === 0 && currentVersion.minor === rangeVersion.minor
-		}
-
-		// Major version must match
-		return currentVersion.major === rangeVersion.major
-	}
-
-	// Handle tilde range: ~1.2.0 means >=1.2.0 and <1.3.0
-	if (required.startsWith("~")) {
-		const rangeVersion = parseVersion(required.slice(1))
-		if (!rangeVersion) return false
-
-		// Must be >= the specified version
-		if (compareVersions(currentVersion, rangeVersion) < 0) return false
-
-		// Major and minor must match
-		return (
-			currentVersion.major === rangeVersion.major && currentVersion.minor === rangeVersion.minor
-		)
-	}
-
-	// Handle >= operator
-	if (required.startsWith(">=")) {
-		const rangeVersion = parseVersion(required.slice(2))
-		if (!rangeVersion) return false
-		return compareVersions(currentVersion, rangeVersion) >= 0
-	}
-
-	// Handle > operator
-	if (required.startsWith(">")) {
-		const rangeVersion = parseVersion(required.slice(1))
-		if (!rangeVersion) return false
-		return compareVersions(currentVersion, rangeVersion) > 0
-	}
-
-	// Handle <= operator
-	if (required.startsWith("<=")) {
-		const rangeVersion = parseVersion(required.slice(2))
-		if (!rangeVersion) return false
-		return compareVersions(currentVersion, rangeVersion) <= 0
-	}
-
-	// Handle < operator
-	if (required.startsWith("<")) {
-		const rangeVersion = parseVersion(required.slice(1))
-		if (!rangeVersion) return false
-		return compareVersions(currentVersion, rangeVersion) < 0
-	}
-
-	// Handle exact version match
-	const rangeVersion = parseVersion(required)
-	if (!rangeVersion) return false
-	return compareVersions(currentVersion, rangeVersion) === 0
 }
 
 /**
