@@ -506,6 +506,220 @@ describe("paths.mjs exports", () => {
 			expect(elapsed).toBeGreaterThanOrEqual(40)
 			expect(elapsed).toBeLessThan(150)
 		})
+
+		describe("input validation", () => {
+			it("should throw TypeError when fn is null", async () => {
+				await expect(retryOnTransientError(null as unknown as () => void)).rejects.toThrow(
+					TypeError,
+				)
+			})
+
+			it("should throw TypeError when fn is undefined", async () => {
+				await expect(retryOnTransientError(undefined as unknown as () => void)).rejects.toThrow(
+					TypeError,
+				)
+			})
+
+			it("should throw TypeError when fn is not a function", async () => {
+				await expect(
+					retryOnTransientError("not a function" as unknown as () => void),
+				).rejects.toThrow(TypeError)
+				await expect(retryOnTransientError(123 as unknown as () => void)).rejects.toThrow(TypeError)
+				await expect(retryOnTransientError({} as unknown as () => void)).rejects.toThrow(TypeError)
+			})
+
+			it("should handle retries: 0 (no retries, only initial attempt)", async () => {
+				let callCount = 0
+				await expect(
+					retryOnTransientError(
+						() => {
+							callCount++
+							const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+							throw err
+						},
+						{ retries: 0 },
+					),
+				).rejects.toThrow("EAGAIN")
+				expect(callCount).toBe(1) // Only initial attempt, no retries
+			})
+
+			it("should throw undefined when retries is negative (loop never executes)", async () => {
+				let callCount = 0
+				// With retries: -1, loop condition (0 <= -1) is false, so loop never runs
+				// lastError is undefined, so it throws undefined
+				await expect(
+					retryOnTransientError(
+						() => {
+							callCount++
+							const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+							throw err
+						},
+						{ retries: -1 },
+					),
+				).rejects.toBeUndefined()
+				expect(callCount).toBe(0) // Loop never runs
+			})
+
+			it("should throw undefined when retries is -5 (loop never executes)", async () => {
+				let callCount = 0
+				await expect(
+					retryOnTransientError(
+						() => {
+							callCount++
+							const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+							throw err
+						},
+						{ retries: -5 },
+					),
+				).rejects.toBeUndefined()
+				expect(callCount).toBe(0) // Loop never runs
+			})
+
+			it("should handle initialDelayMs: 0 (no delay)", async () => {
+				let callCount = 0
+				const start = Date.now()
+				await retryOnTransientError(
+					() => {
+						callCount++
+						if (callCount < 3) {
+							const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+							throw err
+						}
+						return "success"
+					},
+					{ initialDelayMs: 0 },
+				)
+				const elapsed = Date.now() - start
+				expect(callCount).toBe(3)
+				// With 0ms delay, should complete very quickly
+				expect(elapsed).toBeLessThan(50)
+			})
+
+			it("should handle negative initialDelayMs (treated as ~1ms delay by setTimeout)", async () => {
+				let callCount = 0
+				const start = Date.now()
+				await retryOnTransientError(
+					() => {
+						callCount++
+						if (callCount < 2) {
+							const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+							throw err
+						}
+						return "success"
+					},
+					{ initialDelayMs: -100 },
+				)
+				const elapsed = Date.now() - start
+				expect(callCount).toBe(2)
+				// Negative delay is clamped to ~1ms by setTimeout, should complete quickly
+				expect(elapsed).toBeLessThan(50)
+			})
+
+			it("should throw undefined when retries is NaN (loop never executes)", async () => {
+				let callCount = 0
+				// When retries is NaN, the loop condition (attempt <= retries) is always false
+				// So the loop never runs and lastError (undefined) is thrown
+				await expect(
+					retryOnTransientError(
+						() => {
+							callCount++
+							const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+							throw err
+						},
+						{ retries: Number.NaN },
+					),
+				).rejects.toBeUndefined()
+				expect(callCount).toBe(0) // Loop never runs
+			})
+
+			it("should handle non-numeric initialDelayMs (NaN becomes ~1ms delay)", async () => {
+				let callCount = 0
+				const start = Date.now()
+				// When initialDelayMs is NaN, delay calculation produces NaN
+				// setTimeout with NaN delay treats it as ~1ms
+				await retryOnTransientError(
+					() => {
+						callCount++
+						if (callCount < 2) {
+							const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+							throw err
+						}
+						return "success"
+					},
+					{ initialDelayMs: Number.NaN },
+				)
+				const elapsed = Date.now() - start
+				expect(callCount).toBe(2)
+				// NaN delay becomes ~1ms
+				expect(elapsed).toBeLessThan(50)
+			})
+
+			it("should handle Infinity retries (up to a reasonable test limit)", async () => {
+				let callCount = 0
+				// Test with Infinity but succeed after a few attempts to avoid infinite loop
+				await retryOnTransientError(
+					() => {
+						callCount++
+						if (callCount < 5) {
+							const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+							throw err
+						}
+						return "success"
+					},
+					{ retries: Number.POSITIVE_INFINITY, initialDelayMs: 1 },
+				)
+				expect(callCount).toBe(5)
+			})
+
+			it("should throw TypeError when options is null (cannot destructure)", async () => {
+				// The function tries to destructure null, which throws TypeError
+				await expect(
+					retryOnTransientError(
+						() => "success",
+						null as unknown as { retries?: number; initialDelayMs?: number },
+					),
+				).rejects.toThrow(TypeError)
+			})
+
+			it("should handle options as undefined (uses defaults)", async () => {
+				let callCount = 0
+				const result = await retryOnTransientError(() => {
+					callCount++
+					return "success"
+				}, undefined)
+				expect(result).toBe("success")
+				expect(callCount).toBe(1)
+			})
+
+			it("should handle empty options object (uses defaults)", async () => {
+				let callCount = 0
+				await expect(
+					retryOnTransientError(() => {
+						callCount++
+						const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+						throw err
+					}, {}),
+				).rejects.toThrow("EAGAIN")
+				// Default retries is 3, so 4 total attempts
+				expect(callCount).toBe(4)
+			})
+
+			it("should ignore extra unknown options properties", async () => {
+				let callCount = 0
+				const result = await retryOnTransientError(
+					() => {
+						callCount++
+						return "success"
+					},
+					{ retries: 1, initialDelayMs: 10, unknownOption: "ignored" } as {
+						retries?: number
+						initialDelayMs?: number
+					},
+				)
+				expect(result).toBe("success")
+				expect(callCount).toBe(1)
+			})
+		})
 	})
 
 	describe("parseFrontmatter", () => {
