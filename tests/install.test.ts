@@ -923,6 +923,213 @@ Adding more text to ensure minimum length requirement is satisfied here.`
 		})
 	})
 
+	describe("E2E: actual scripts with --dry-run", () => {
+		it("should run actual postinstall.mjs with --dry-run", async () => {
+			// Run the actual postinstall script with --dry-run flag
+			const proc = Bun.spawn(["node", "postinstall.mjs", "--dry-run"], {
+				cwd: process.cwd(), // Use actual project directory
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+			const stderr = await new Response(proc.stderr).text()
+
+			// Should succeed
+			expect(exitCode).toBe(0)
+
+			// Should indicate dry-run mode
+			expect(stdout).toContain("[DRY-RUN]")
+			expect(stdout).toContain("opencode-plugin-opencoder: Installing agents...")
+
+			// Should show what would be installed
+			expect(stdout).toContain("Would install: opencoder.md")
+			expect(stdout).toContain("Would install: opencoder-planner.md")
+			expect(stdout).toContain("Would install: opencoder-builder.md")
+
+			// Should show success summary
+			expect(stdout).toContain("Successfully installed 3 agent(s)")
+
+			// Should not have errors
+			expect(stderr).toBe("")
+		})
+
+		it("should run actual postinstall.mjs with --dry-run --verbose", async () => {
+			const proc = Bun.spawn(["node", "postinstall.mjs", "--dry-run", "--verbose"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+
+			// Should include verbose output
+			expect(stdout).toContain("[VERBOSE]")
+			expect(stdout).toContain("Package root:")
+			expect(stdout).toContain("Source directory:")
+			expect(stdout).toContain("Target directory:")
+			expect(stdout).toContain("Dry run: true")
+			expect(stdout).toContain("Markdown files found: 3")
+			expect(stdout).toContain("Validation passed")
+		})
+
+		it("should run actual preuninstall.mjs with --dry-run", async () => {
+			// First, ensure the target directory exists with installed agents
+			// We'll create the target directory structure for this test
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+
+			// Create target directory if it doesn't exist
+			mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
+
+			// Copy agent files to target (simulate a real installation)
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+			for (const file of agentFiles) {
+				const sourcePath = join(process.cwd(), "agents", file)
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(sourcePath)) {
+					const content = readFileSync(sourcePath, "utf-8")
+					writeFileSync(targetPath, content)
+				}
+			}
+
+			const proc = Bun.spawn(["node", "preuninstall.mjs", "--dry-run"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+			const stderr = await new Response(proc.stderr).text()
+
+			// Should succeed
+			expect(exitCode).toBe(0)
+
+			// Should indicate dry-run mode
+			expect(stdout).toContain("[DRY-RUN]")
+			expect(stdout).toContain("opencode-plugin-opencoder: Removing agents...")
+
+			// Should show what would be removed
+			expect(stdout).toContain("Would remove:")
+
+			// Should show removal summary
+			expect(stdout).toContain("Removed 3 agent(s)")
+
+			// Should not have errors
+			expect(stderr).toBe("")
+
+			// Clean up - remove the test agents we installed
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+		})
+
+		it("should run actual preuninstall.mjs with --dry-run --verbose", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+
+			// Create target directory with agents
+			mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
+
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+			for (const file of agentFiles) {
+				const sourcePath = join(process.cwd(), "agents", file)
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(sourcePath)) {
+					const content = readFileSync(sourcePath, "utf-8")
+					writeFileSync(targetPath, content)
+				}
+			}
+
+			const proc = Bun.spawn(["node", "preuninstall.mjs", "--dry-run", "--verbose"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+
+			// Should include verbose output
+			expect(stdout).toContain("[VERBOSE]")
+			expect(stdout).toContain("Package root:")
+			expect(stdout).toContain("Source directory:")
+			expect(stdout).toContain("Target directory:")
+			expect(stdout).toContain("Dry run: true")
+			expect(stdout).toContain("Markdown files to remove: 3")
+
+			// Clean up
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+		})
+
+		it("should handle preuninstall --dry-run with no installed agents", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+
+			// Ensure agents are NOT installed (remove them if they exist)
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+
+			const proc = Bun.spawn(["node", "preuninstall.mjs", "--dry-run"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+
+			// Should indicate nothing to remove OR no agents directory
+			const hasNoAgentsMsg =
+				stdout.includes("No agents were installed") || stdout.includes("No agents directory found")
+			expect(hasNoAgentsMsg).toBe(true)
+		})
+
+		it("should validate actual agent files pass validation in --dry-run", async () => {
+			// This test verifies that our actual agent files pass the validation
+			const proc = Bun.spawn(["node", "postinstall.mjs", "--dry-run", "--verbose"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+			const stderr = await new Response(proc.stderr).text()
+
+			// Should succeed - all our actual agents should be valid
+			expect(exitCode).toBe(0)
+
+			// Should NOT contain validation failure messages
+			expect(stderr).not.toContain("Invalid agent file content")
+			expect(stderr).not.toContain("File too short")
+			expect(stderr).not.toContain("missing YAML frontmatter")
+			expect(stderr).not.toContain("missing required fields")
+
+			// Should show validation passed for each file
+			expect(stdout).toContain("Validation passed")
+		})
+	})
+
 	describe("full install/uninstall cycle", () => {
 		it("should install and then cleanly uninstall", async () => {
 			// Create scripts
