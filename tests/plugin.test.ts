@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import type { PluginInput } from "@opencode-ai/plugin"
+import type { Event } from "@opencode-ai/sdk"
 import { OpenCoderPlugin } from "../src/plugin"
 
 describe("OpenCoderPlugin", () => {
@@ -41,11 +42,11 @@ describe("OpenCoderPlugin", () => {
 		const result = await OpenCoderPlugin(createMockContext())
 
 		// Event hook should be callable without throwing
-		const mockEvent = {
-			type: "session.created" as const,
+		const mockEvent: Event = {
+			type: "session.idle",
 			properties: { sessionID: "test-123" },
 		}
-		await expect(result.event?.({ event: mockEvent as any })).resolves.toBeUndefined()
+		await expect(result.event?.({ event: mockEvent })).resolves.toBeUndefined()
 	})
 
 	it("should have callable tool.execute.before hook", async () => {
