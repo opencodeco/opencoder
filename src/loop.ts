@@ -17,12 +17,8 @@ import {
 	readFileOrNull,
 	writeFile,
 } from "./fs.ts"
-import {
-	formatIdeasForSelection,
-	loadAllIdeas,
-	parseIdeaSelection,
-	removeIdeaByIndex,
-} from "./ideas.ts"
+import { commitChanges, generateCommitMessage, hasChanges, pushChanges } from "./git.ts"
+import { formatIdeasForSelection, loadAllIdeas, parseIdeaSelection, removeIdea } from "./ideas.ts"
 import { Logger } from "./logger.ts"
 import { getTasks, getUncompletedTasks, markTaskComplete, validatePlan } from "./plan.ts"
 import { loadState, saveState } from "./state.ts"
@@ -88,7 +84,7 @@ export async function runLoop(config: Config): Promise<void> {
 						break
 
 					case "evaluation":
-						await runEvaluationPhase(state, builder, paths, logger)
+						await runEvaluationPhase(state, builder, paths, logger, config)
 						break
 				}
 			} catch (err) {
@@ -117,9 +113,12 @@ export async function runLoop(config: Config): Promise<void> {
 }
 
 /**
- * Log startup information
+ * Log startup information.
+ * Exported for testing.
+ * @param logger - Logger instance
+ * @param config - Application configuration
  */
-function logStartupInfo(logger: Logger, config: Config): void {
+export function logStartupInfo(logger: Logger, config: Config): void {
 	// Get version from build-time define or package.json
 	const version = typeof VERSION !== "undefined" ? VERSION : "1.0.0"
 
@@ -136,10 +135,12 @@ function logStartupInfo(logger: Logger, config: Config): void {
 }
 
 /**
- * Setup signal handlers for graceful shutdown
+ * Setup signal handlers for graceful shutdown.
+ * @param logger - Logger instance for output
+ * @param _builder - Builder instance (unused but kept for potential future use)
  */
 function setupSignalHandlers(logger: Logger, _builder: Builder): void {
-	const handleShutdown = async (signal: string) => {
+	const handleShutdown = async (signal: string): Promise<void> => {
 		if (forceShutdown) {
 			logger.say("\nForce quit!")
 			process.exit(130)
@@ -156,8 +157,12 @@ function setupSignalHandlers(logger: Logger, _builder: Builder): void {
 		logger.say("Press Ctrl+C again to force quit.")
 	}
 
-	process.on("SIGINT", () => handleShutdown("SIGINT"))
-	process.on("SIGTERM", () => handleShutdown("SIGTERM"))
+	process.on("SIGINT", (): void => {
+		handleShutdown("SIGINT")
+	})
+	process.on("SIGTERM", (): void => {
+		handleShutdown("SIGTERM")
+	})
 }
 
 /**
@@ -170,57 +175,117 @@ async function runPlanPhase(
 	logger: Logger,
 	config: Config,
 ): Promise<void> {
-	// Check for ideas first
-	const ideas = await loadAllIdeas(paths.ideasDir)
-
 	let planContent: string
+	let ideaToRemove: { path: string; filename: string } | null = null
 
-	if (ideas.length > 0) {
-		logger.info(`Found ${ideas.length} idea(s) in queue`)
+	// Check if we're resuming with a previously selected idea
+	if (state.currentIdeaPath && state.currentIdeaFilename) {
+		logger.info(`Resuming with idea: ${state.currentIdeaFilename}`)
 
-		if (ideas.length === 1) {
-			// Single idea - use directly
-			const idea = ideas[0]
-			if (!idea) throw new Error("Unexpected: ideas[0] is undefined")
-			logger.say(`Using idea: ${idea.filename}`)
-			removeIdeaByIndex(ideas, 0)
-			planContent = await builder.runIdeaPlan(idea.content, idea.filename, state.cycle)
-		} else {
-			// Multiple ideas - let AI select
-			const formatted = formatIdeasForSelection(ideas)
-			const selection = await builder.runIdeaSelection(formatted, state.cycle)
-			const selectedIndex = parseIdeaSelection(selection)
-
-			if (selectedIndex !== null && selectedIndex < ideas.length) {
-				const idea = ideas[selectedIndex]
-				if (!idea) throw new Error("Unexpected: selected idea is undefined")
-				logger.success(`AI selected idea: ${idea.filename}`)
-				removeIdeaByIndex(ideas, selectedIndex)
-				planContent = await builder.runIdeaPlan(idea.content, idea.filename, state.cycle)
+		// Try to read the idea content (it might still exist if we crashed before deleting)
+		try {
+			const content = await Bun.file(state.currentIdeaPath).text()
+			if (content.trim()) {
+				ideaToRemove = { path: state.currentIdeaPath, filename: state.currentIdeaFilename }
+				planContent = await builder.runIdeaPlan(content, state.currentIdeaFilename, state.cycle)
 			} else {
-				// Fallback to autonomous plan
-				logger.warn("Could not parse idea selection, falling back to autonomous plan")
+				// Idea file is empty or gone, clear the state and proceed with normal planning
+				logger.warn(
+					`Idea file ${state.currentIdeaFilename} is empty, proceeding with autonomous plan`,
+				)
+				state.currentIdeaPath = undefined
+				state.currentIdeaFilename = undefined
 				planContent = await builder.runPlan(state.cycle, config.userHint)
 			}
+		} catch {
+			// Idea file doesn't exist anymore, but we have it in state - clear and proceed
+			logger.warn(
+				`Idea file ${state.currentIdeaFilename} not found, proceeding with autonomous plan`,
+			)
+			state.currentIdeaPath = undefined
+			state.currentIdeaFilename = undefined
+			planContent = await builder.runPlan(state.cycle, config.userHint)
 		}
 	} else {
-		// No ideas - autonomous plan
-		planContent = await builder.runPlan(state.cycle, config.userHint)
+		// Check for new ideas
+		const ideas = await loadAllIdeas(paths.ideasDir)
+
+		if (ideas.length > 0) {
+			logger.info(`Found ${ideas.length} idea(s) in queue`)
+
+			let selectedIdea: { path: string; filename: string; content: string } | null = null
+
+			if (ideas.length === 1) {
+				// Single idea - use directly
+				const idea = ideas[0]
+				if (!idea) throw new Error("Unexpected: ideas[0] is undefined")
+				selectedIdea = idea
+				logger.say(`Using idea: ${idea.filename}`)
+			} else {
+				// Multiple ideas - let AI select
+				const formatted = formatIdeasForSelection(ideas)
+				const selection = await builder.runIdeaSelection(formatted, state.cycle)
+				const selectedIndex = parseIdeaSelection(selection)
+
+				if (selectedIndex !== null && selectedIndex < ideas.length) {
+					const idea = ideas[selectedIndex]
+					if (!idea) throw new Error("Unexpected: selected idea is undefined")
+					selectedIdea = idea
+					logger.success(`AI selected idea: ${idea.filename}`)
+				} else {
+					// Fallback to autonomous plan
+					logger.warn("Could not parse idea selection, falling back to autonomous plan")
+				}
+			}
+
+			if (selectedIdea) {
+				// Save the selected idea to state BEFORE creating the plan
+				// This ensures we can resume if the process crashes
+				state.currentIdeaPath = selectedIdea.path
+				state.currentIdeaFilename = selectedIdea.filename
+				await saveState(paths.stateFile, state)
+
+				ideaToRemove = { path: selectedIdea.path, filename: selectedIdea.filename }
+				planContent = await builder.runIdeaPlan(
+					selectedIdea.content,
+					selectedIdea.filename,
+					state.cycle,
+				)
+			} else {
+				// No valid idea selected, fall back to autonomous plan
+				planContent = await builder.runPlan(state.cycle, config.userHint)
+			}
+		} else {
+			// No ideas - autonomous plan
+			planContent = await builder.runPlan(state.cycle, config.userHint)
+		}
 	}
 
 	// Validate the plan
 	const validation = validatePlan(planContent)
 	if (!validation.valid) {
 		logger.logError(`Invalid plan: ${validation.error}`)
-		// Stay in plan phase to retry
+		// Stay in plan phase to retry - don't remove the idea yet
 		return
 	}
 
-	// Save the plan
+	// Save the plan FIRST
 	await writeFile(paths.currentPlan, planContent)
 
 	const tasks = getTasks(planContent)
 	logger.success(`Plan created with ${tasks.length} tasks`)
+
+	// Only NOW remove the idea file, after plan is safely saved
+	if (ideaToRemove) {
+		const removed = removeIdea(ideaToRemove.path)
+		if (removed) {
+			logger.logVerbose(`Removed processed idea: ${ideaToRemove.filename}`)
+		}
+	}
+
+	// Clear the idea from state since it's now processed
+	state.currentIdeaPath = undefined
+	state.currentIdeaFilename = undefined
 
 	// Transition to build
 	state.phase = "build"
@@ -277,7 +342,7 @@ async function runBuildPhase(
 	if (shutdownRequested) return
 
 	// Build the task
-	logger.activity("Building task", `${state.currentTaskNum}/${tasks.length}`)
+	logger.info(`Building task ${state.currentTaskNum}/${tasks.length}`)
 	const result = await builder.runTask(
 		nextTask.description,
 		state.cycle,
@@ -291,6 +356,12 @@ async function runBuildPhase(
 		await writeFile(paths.currentPlan, updatedPlan)
 
 		logger.success(`Task ${state.currentTaskNum}/${tasks.length} complete`)
+
+		// Auto-commit changes if enabled
+		if (config.autoCommit && hasChanges(config.projectDir)) {
+			const commitMessage = generateCommitMessage(nextTask.description)
+			commitChanges(config.projectDir, logger, commitMessage, config.commitSignoff)
+		}
 	} else {
 		logger.logError(`Task failed: ${result.error}`)
 		// Continue to next task or retry logic could go here
@@ -310,6 +381,7 @@ async function runEvaluationPhase(
 	builder: Builder,
 	paths: Paths,
 	logger: Logger,
+	config: Config,
 ): Promise<void> {
 	// Read current plan for evaluation
 	const planContent = await readFileOrNull(paths.currentPlan)
@@ -333,6 +405,11 @@ async function runEvaluationPhase(
 		// Archive the completed plan
 		await archivePlan(paths, state.cycle, logger)
 
+		// Auto-push commits if enabled
+		if (config.autoPush && hasChanges(config.projectDir)) {
+			pushChanges(config.projectDir, logger)
+		}
+
 		// Start new cycle
 		state.cycle++
 		state.phase = "plan"
@@ -340,6 +417,8 @@ async function runEvaluationPhase(
 		state.totalTasks = 0
 		state.currentTaskNum = 0
 		state.currentTaskDesc = ""
+		state.currentIdeaPath = undefined
+		state.currentIdeaFilename = undefined
 
 		// Clear session for new cycle
 		builder.clearSession()
@@ -353,9 +432,13 @@ async function runEvaluationPhase(
 }
 
 /**
- * Archive the completed plan to history
+ * Archive the completed plan to history.
+ * Exported for testing.
+ * @param paths - Workspace paths
+ * @param cycle - Current cycle number
+ * @param logger - Logger instance
  */
-async function archivePlan(paths: Paths, cycle: number, logger: Logger): Promise<void> {
+export async function archivePlan(paths: Paths, cycle: number, logger: Logger): Promise<void> {
 	const planContent = await readFileOrNull(paths.currentPlan)
 	if (!planContent) return
 
@@ -368,17 +451,37 @@ async function archivePlan(paths: Paths, cycle: number, logger: Logger): Promise
 }
 
 /**
- * Sleep for a given number of milliseconds
+ * Sleep for a given number of milliseconds.
+ * Exported for testing and reuse.
+ * @param ms - Number of milliseconds to sleep
+ * @returns Promise that resolves after the specified time
  */
-function sleep(ms: number): Promise<void> {
+export function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /**
- * Check if shutdown has been requested
+ * Check if shutdown has been requested.
+ * Exported for testing and external shutdown checks.
  */
 export function isShutdownRequested(): boolean {
 	return shutdownRequested
+}
+
+/**
+ * Reset shutdown flags. Only for testing purposes.
+ * WARNING: Do not use in production code.
+ */
+export function resetShutdownFlags(): void {
+	shutdownRequested = false
+	forceShutdown = false
+}
+
+/**
+ * Request a shutdown. Used for programmatic shutdown triggering.
+ */
+export function requestShutdown(): void {
+	shutdownRequested = true
 }
 
 // Declare VERSION as a global that will be defined at build time

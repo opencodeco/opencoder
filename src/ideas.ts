@@ -1,7 +1,7 @@
 /**
  * Ideas queue management
  *
- * Users can place .md files in .opencoder/ideas/ to provide specific tasks
+ * Users can place .md files in .opencode/opencoder/ideas/ to provide specific tasks
  * for the autonomous loop to work on.
  */
 
@@ -43,7 +43,12 @@ export async function loadAllIdeas(ideasDir: string): Promise<Idea[]> {
 				filename,
 				content: truncatedContent,
 			})
-		} catch {}
+		} catch (err) {
+			// Skip unreadable files (permission issues, file deleted, etc.)
+			if (process.env.DEBUG) {
+				console.debug(`[ideas] Failed to read ${filename}: ${err}`)
+			}
+		}
 	}
 
 	return ideas
@@ -103,7 +108,11 @@ export function removeIdea(ideaPath: string): boolean {
 			return true
 		}
 		return false
-	} catch {
+	} catch (err) {
+		// Failed to remove idea file (permission issues, etc.)
+		if (process.env.DEBUG) {
+			console.debug(`[ideas] Failed to remove ${ideaPath}: ${err}`)
+		}
 		return false
 	}
 }
@@ -177,13 +186,19 @@ export async function cleanupEmptyIdeas(ideasDir: string): Promise<number> {
 				unlinkSync(path)
 				removedCount++
 			}
-		} catch {
+		} catch (err) {
 			// Try to remove unreadable files
+			if (process.env.DEBUG) {
+				console.debug(`[ideas] Failed to read ${filename} during cleanup: ${err}`)
+			}
 			try {
 				unlinkSync(path)
 				removedCount++
-			} catch {
-				// Ignore
+			} catch (unlinkErr) {
+				// Could not remove file (permission issues, etc.)
+				if (process.env.DEBUG) {
+					console.debug(`[ideas] Failed to remove ${filename}: ${unlinkErr}`)
+				}
 			}
 		}
 	}
