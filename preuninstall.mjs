@@ -67,6 +67,13 @@ const verbose = logger.verbose
  * Exit codes:
  * - 0: Always exits successfully, even if no agents were removed or
  *      some removals failed. This ensures npm uninstall completes.
+ *
+ * @example
+ * // Run as preuninstall script
+ * main().catch((err) => {
+ *   console.error("Unexpected error:", err.message)
+ *   // Don't exit with error code - we want uninstall to succeed
+ * })
  */
 async function main() {
 	const prefix = DRY_RUN ? "[DRY-RUN] " : ""

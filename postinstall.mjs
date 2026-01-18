@@ -63,8 +63,28 @@ const verbose = logger.verbose
  * Validates an agent file by reading and validating its content,
  * including version compatibility checking.
  *
+ * Performs the following validations:
+ * 1. Content structure validation (frontmatter, headers, keywords)
+ * 2. Version compatibility checking against current OpenCode version
+ *
  * @param {string} filePath - Path to the agent file to validate
  * @returns {{ valid: boolean, error?: string }} Validation result with optional error message
+ *
+ * @example
+ * // Validate an agent file
+ * const result = validateAgentFile('/path/to/agent.md')
+ * if (!result.valid) {
+ *   console.error(`Validation failed: ${result.error}`)
+ * }
+ *
+ * @example
+ * // Use in a file copy loop
+ * for (const file of agentFiles) {
+ *   const validation = validateAgentFile(join(sourceDir, file))
+ *   if (validation.valid) {
+ *     copyFileSync(join(sourceDir, file), join(targetDir, file))
+ *   }
+ * }
  */
 function validateAgentFile(filePath) {
 	const content = readFileSync(filePath, "utf-8")
@@ -107,6 +127,13 @@ function validateAgentFile(filePath) {
  * - 0: All agents installed successfully, or partial success with some failures
  * - 1: Complete failure - source directory missing, no agent files found,
  *      or all file copies failed
+ *
+ * @example
+ * // Run as postinstall script
+ * main().catch((err) => {
+ *   console.error("Unexpected error:", err.message)
+ *   process.exit(1)
+ * })
  */
 async function main() {
 	const prefix = DRY_RUN ? "[DRY-RUN] " : ""
