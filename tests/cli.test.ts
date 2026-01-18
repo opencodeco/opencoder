@@ -227,24 +227,19 @@ describe("parseCli", () => {
 		})
 	})
 
-	describe("ideas-list option", () => {
-		test("parses --ideas-list flag", () => {
-			const result = parseCli(argv("--ideas-list"))
+	describe("idea subcommands", () => {
+		test("idea command is available", () => {
+			const result = parseCli(argv("idea", "test idea"))
 
-			expect(result.options.ideasList).toBe(true)
+			expect(result.hint).toBeUndefined()
+			// The idea command is handled separately by the idea subcommand handler
 		})
 
-		test("parses --ideas-list with project option", () => {
-			const result = parseCli(argv("--ideas-list", "-p", "./myproject"))
+		test("idea command with project option", () => {
+			const result = parseCli(argv("idea", "test idea", "-p", "./myproject"))
 
-			expect(result.options.ideasList).toBe(true)
-			expect(result.options.project).toBe("./myproject")
-		})
-
-		test("ideasList is undefined when not provided", () => {
-			const result = parseCli(argv("-m", "anthropic/claude-sonnet-4"))
-
-			expect(result.options.ideasList).toBeUndefined()
+			expect(result.hint).toBeUndefined()
+			// The idea command is handled separately by the idea subcommand handler
 		})
 	})
 

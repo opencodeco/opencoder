@@ -33,6 +33,12 @@ async function handleIdeaCommand(
 	opts: Record<string, unknown>,
 ): Promise<void> {
 	try {
+		// Validate description is not empty
+		if (!description || !description.trim()) {
+			console.error("Error: Idea description cannot be empty")
+			process.exit(1)
+		}
+
 		const projectDir = opts.project ? resolve(opts.project as string) : process.cwd()
 		const paths = initializePaths(projectDir)
 
@@ -71,6 +77,45 @@ async function handleIdeaCommand(
 }
 
 /**
+ * Handle the 'idea list' subcommand: list all ideas in the queue
+ */
+async function handleIdeasListCommand(opts: Record<string, unknown>): Promise<void> {
+	try {
+		const projectDir = opts.project ? resolve(opts.project as string) : process.cwd()
+		const paths = initializePaths(projectDir)
+
+		const ideas = await loadAllIdeas(paths.ideasDir)
+		const count = await countIdeas(paths.ideasDir)
+
+		console.log("\nIdeas Queue")
+		console.log("===========\n")
+
+		if (count === 0) {
+			console.log("No ideas in queue.")
+			console.log(`\nTo add ideas, run: opencoder idea "<description>"`)
+			console.log(`Or place .md files in: ${paths.ideasDir}`)
+		} else {
+			console.log(`Found ${count} idea(s):\n`)
+			for (let i = 0; i < ideas.length; i++) {
+				const idea = ideas[i]
+				if (!idea) continue
+				const summary = getIdeaSummary(idea.content)
+				console.log(`  ${i + 1}. ${idea.filename}`)
+				console.log(`     ${summary}`)
+				console.log("")
+			}
+		}
+
+		console.log("")
+	} catch (err) {
+		console.error(
+			`Error: Failed to list ideas: ${err instanceof Error ? err.message : String(err)}`,
+		)
+		process.exit(1)
+	}
+}
+
+/**
  * Create and configure the CLI program
  */
 function createProgram(): Command {
@@ -91,16 +136,25 @@ function createProgram(): Command {
 		.option("-s, --signoff", "Add Signed-off-by line to commits")
 		.option("--status", "Display metrics summary and exit")
 		.option("--metrics-reset", "Reset metrics to default values (requires confirmation)")
-		.option("--ideas-list", "List all ideas in the queue and exit")
 
-	// Add 'idea' subcommand
-	const ideaCommand = program
-		.command("idea")
-		.description("Add a new idea to the queue")
+	// Add 'idea' command with subcommands
+	const ideaCommand = program.command("idea").description("Manage ideas in the queue")
+
+	// 'idea add' subcommand (default action)
+	ideaCommand
 		.argument("<description>", "Description of the idea")
 		.option("-p, --project <dir>", "Project directory (default: current directory)")
 		.action(async (description: string, opts: Record<string, unknown>) => {
 			await handleIdeaCommand(description, opts)
+		})
+
+	// 'idea list' subcommand
+	ideaCommand
+		.command("list")
+		.description("List all ideas in the queue")
+		.option("-p, --project <dir>", "Project directory (default: current directory)")
+		.action(async (opts: Record<string, unknown>) => {
+			await handleIdeasListCommand(opts)
 		})
 
 	// Add help text for idea command
@@ -111,6 +165,8 @@ Examples:
   $ opencoder idea "Fix login bug"
   $ opencoder idea "Add dark mode support" -p ./myproject
   $ opencoder idea "Implement user authentication with JWT tokens"
+  $ opencoder idea list
+  $ opencoder idea list -p ./myproject
 `,
 	)
 
@@ -149,20 +205,21 @@ Examples:
   $ opencoder --metrics-reset
     Reset metrics to default values (with confirmation)
 
-  $ opencoder --ideas-list
-    List all ideas in the queue without starting the loop
-
-  $ opencoder --ideas-list -p ./myproject
-    List ideas for a specific project
-
   $ opencoder idea "Fix login bug"
     Add a new idea to the queue
 
   $ opencoder idea "Add dark mode support" -p ./myproject
     Add idea to a specific project
 
+  $ opencoder idea list
+    List all ideas in the queue
+
+  $ opencoder idea list -p ./myproject
+    List ideas for a specific project
+
 Commands:
     idea <description>          Add a new idea to the queue
+    idea list                   List all ideas in the queue
 
 Options:
     -p, --project <dir>         Project directory (default: current directory)
@@ -176,7 +233,6 @@ Options:
     -s, --signoff               Add Signed-off-by line to commits
     --status                    Display metrics summary and exit
     --metrics-reset             Reset metrics to default values (requires confirmation)
-    --ideas-list                List all ideas in the queue and exit
 
 Environment variables:
     OPENCODER_PLAN_MODEL        Default plan model
@@ -299,7 +355,6 @@ export async function run(): Promise<void> {
 				commitSignoff: opts.signoff as boolean | undefined,
 				status: opts.status as boolean | undefined,
 				metricsReset: opts.metricsReset as boolean | undefined,
-				ideasList: opts.ideasList as boolean | undefined,
 			}
 
 			// Handle --version flag: display version info and exit
@@ -350,36 +405,6 @@ export async function run(): Promise<void> {
 					console.log("\nMetrics reset cancelled.\n")
 				}
 
-				return
-			}
-
-			// Handle --ideas-list flag: display ideas queue and exit
-			if (cliOptions.ideasList) {
-				const projectDir = cliOptions.project ? resolve(cliOptions.project) : process.cwd()
-				const paths = initializePaths(projectDir)
-
-				const ideas = await loadAllIdeas(paths.ideasDir)
-				const count = await countIdeas(paths.ideasDir)
-
-				console.log("\nIdeas Queue")
-				console.log("===========\n")
-
-				if (count === 0) {
-					console.log("No ideas in queue.")
-					console.log(`\nTo add ideas, place .md files in: ${paths.ideasDir}`)
-				} else {
-					console.log(`Found ${count} idea(s):\n`)
-					for (let i = 0; i < ideas.length; i++) {
-						const idea = ideas[i]
-						if (!idea) continue
-						const summary = getIdeaSummary(idea.content)
-						console.log(`  ${i + 1}. ${idea.filename}`)
-						console.log(`     ${summary}`)
-						console.log("")
-					}
-				}
-
-				console.log("")
 				return
 			}
 

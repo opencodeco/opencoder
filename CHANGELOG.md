@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Ideas Queue Management** - New CLI commands for managing the ideas queue
   - `opencoder idea <description>` command to quickly add ideas to the queue
-  - `--ideas-list` flag to list all queued ideas without starting the loop
+  - `opencoder idea list` command to list all queued ideas
   - Automatic timestamped filenames for easy organization
   - Pre-filled markdown templates for quick editing
 - **Enhanced Conventional Commits** - Expanded commit message generation
