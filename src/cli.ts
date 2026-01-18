@@ -316,7 +316,6 @@ export function parseCli(argv: string[] = process.argv): ParsedCli {
 			commitSignoff: opts.signoff as boolean | undefined,
 			status: opts.status as boolean | undefined,
 			metricsReset: opts.metricsReset as boolean | undefined,
-			ideasList: opts.ideasList as boolean | undefined,
 		},
 		hint: args[0],
 	}
