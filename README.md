@@ -121,6 +121,12 @@ cp node_modules/opencode-plugin-opencoder/agents/*.md ~/.config/opencode/agents/
 # Install dependencies
 bun install
 
+# Run type checker
+bun run typecheck
+
+# Run tests
+bun test
+
 # Run linter
 bun run lint
 
