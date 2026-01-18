@@ -1738,6 +1738,297 @@ The agent handles various tasks and operations in the system.
 		})
 	})
 
+	describe("CLI flags: --help", () => {
+		it("postinstall --help shows usage and exits 0", async () => {
+			const proc = Bun.spawn(["node", "postinstall.mjs", "--help"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+			const stderr = await new Response(proc.stderr).text()
+
+			expect(exitCode).toBe(0)
+			expect(stdout).toContain("Usage:")
+			expect(stdout).toContain("--dry-run")
+			expect(stdout).toContain("--verbose")
+			expect(stdout).toContain("--help")
+			expect(stdout).toContain("Examples:")
+			expect(stderr).toBe("")
+		})
+
+		it("preuninstall --help shows usage and exits 0", async () => {
+			const proc = Bun.spawn(["node", "preuninstall.mjs", "--help"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+			const stderr = await new Response(proc.stderr).text()
+
+			expect(exitCode).toBe(0)
+			expect(stdout).toContain("Usage:")
+			expect(stdout).toContain("--dry-run")
+			expect(stdout).toContain("--verbose")
+			expect(stdout).toContain("--help")
+			expect(stdout).toContain("Examples:")
+			expect(stderr).toBe("")
+		})
+
+		it("postinstall --help does not perform installation", async () => {
+			// Track state before --help
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+
+			// Ensure agents are NOT installed
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+
+			const proc = Bun.spawn(["node", "postinstall.mjs", "--help"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			await proc.exited
+
+			// Verify no files were created
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				expect(existsSync(targetPath)).toBe(false)
+			}
+		})
+	})
+
+	describe("CLI flags: --dry-run", () => {
+		it("postinstall --dry-run does not create files", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+
+			// Ensure agents are NOT installed
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+
+			const proc = Bun.spawn(["node", "postinstall.mjs", "--dry-run"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+			expect(stdout).toContain("[DRY-RUN]")
+			expect(stdout).toContain("Would install:")
+
+			// Verify no files were actually created
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				expect(existsSync(targetPath)).toBe(false)
+			}
+		})
+
+		it("preuninstall --dry-run does not delete files", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+
+			// Ensure target directory exists
+			mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
+
+			// Install agents first
+			for (const file of agentFiles) {
+				const sourcePath = join(process.cwd(), "agents", file)
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(sourcePath)) {
+					const content = readFileSync(sourcePath, "utf-8")
+					writeFileSync(targetPath, content)
+				}
+			}
+
+			const proc = Bun.spawn(["node", "preuninstall.mjs", "--dry-run"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+			expect(stdout).toContain("[DRY-RUN]")
+			expect(stdout).toContain("Would remove:")
+
+			// Verify files were NOT deleted
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				expect(existsSync(targetPath)).toBe(true)
+			}
+
+			// Clean up
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+		})
+
+		it("postinstall --dry-run does not create target directory", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+
+			// Remove the target directory if it exists
+			if (existsSync(AGENTS_TARGET_DIR)) {
+				// Only remove if empty or contains only our agents
+				const files = readdirSync(AGENTS_TARGET_DIR)
+				const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+				const onlyOurAgents = files.every((f) => agentFiles.includes(f))
+
+				if (onlyOurAgents) {
+					rmSync(AGENTS_TARGET_DIR, { recursive: true })
+				}
+			}
+
+			// Only run test if we successfully removed the directory
+			if (!existsSync(AGENTS_TARGET_DIR)) {
+				const proc = Bun.spawn(["node", "postinstall.mjs", "--dry-run"], {
+					cwd: process.cwd(),
+					stdout: "pipe",
+					stderr: "pipe",
+				})
+
+				const exitCode = await proc.exited
+				const stdout = await new Response(proc.stdout).text()
+
+				expect(exitCode).toBe(0)
+				expect(stdout).toContain("Would create")
+
+				// Verify directory was NOT created
+				expect(existsSync(AGENTS_TARGET_DIR)).toBe(false)
+			}
+		})
+	})
+
+	describe("CLI flags: --verbose", () => {
+		it("postinstall --verbose shows detailed output", async () => {
+			const proc = Bun.spawn(["node", "postinstall.mjs", "--dry-run", "--verbose"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+			expect(stdout).toContain("[VERBOSE]")
+			expect(stdout).toContain("Package root:")
+			expect(stdout).toContain("Source directory:")
+			expect(stdout).toContain("Target directory:")
+			expect(stdout).toContain("Dry run:")
+		})
+
+		it("preuninstall --verbose shows detailed output", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+
+			// Ensure target directory exists with agents
+			mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
+			for (const file of agentFiles) {
+				const sourcePath = join(process.cwd(), "agents", file)
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(sourcePath)) {
+					const content = readFileSync(sourcePath, "utf-8")
+					writeFileSync(targetPath, content)
+				}
+			}
+
+			const proc = Bun.spawn(["node", "preuninstall.mjs", "--dry-run", "--verbose"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+			expect(stdout).toContain("[VERBOSE]")
+			expect(stdout).toContain("Package root:")
+			expect(stdout).toContain("Source directory:")
+			expect(stdout).toContain("Target directory:")
+			expect(stdout).toContain("Dry run:")
+
+			// Clean up
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+		})
+
+		it("postinstall --verbose shows file processing details", async () => {
+			const proc = Bun.spawn(["node", "postinstall.mjs", "--dry-run", "--verbose"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+			expect(stdout).toContain("Processing:")
+			expect(stdout).toContain("Source path:")
+			expect(stdout).toContain("Target path:")
+			expect(stdout).toContain("Validation passed")
+		})
+
+		it("postinstall without --verbose does not show verbose markers", async () => {
+			const proc = Bun.spawn(["node", "postinstall.mjs", "--dry-run"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+			expect(stdout).not.toContain("[VERBOSE]")
+			expect(stdout).not.toContain("Processing:")
+			expect(stdout).not.toContain("Validation passed")
+		})
+
+		it("preuninstall without --verbose does not show verbose markers", async () => {
+			const proc = Bun.spawn(["node", "preuninstall.mjs", "--dry-run"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+			expect(stdout).not.toContain("[VERBOSE]")
+			expect(stdout).not.toContain("Processing:")
+		})
+	})
+
 	describe("full install/uninstall cycle", () => {
 		it("should install and then cleanly uninstall", async () => {
 			// Create scripts
