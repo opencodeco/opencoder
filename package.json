@@ -14,6 +14,7 @@
     "postinstall": "node postinstall.mjs",
     "preuninstall": "node preuninstall.mjs",
     "test": "bun test",
+    "typecheck": "bun tsc --noEmit",
     "lint": "bunx biome check .",
     "lint:fix": "bunx biome check --write .",
     "format": "bunx biome format --write ."

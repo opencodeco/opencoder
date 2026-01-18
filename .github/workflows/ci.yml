@@ -20,6 +20,9 @@ jobs:
       - name: Install dependencies
         run: bun install --ignore-scripts
 
+      - name: Check types
+        run: bun run typecheck
+
       - name: Check formatting and lint
         run: bun run lint
 
