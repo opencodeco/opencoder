@@ -85,8 +85,54 @@ export function generateCommitMessage(taskDescription: string): string {
 		lowerDesc.includes("refactor") ||
 		lowerDesc.includes("rewrite") ||
 		lowerDesc.includes("restructure") ||
-		lowerDesc.includes("improve")
+		lowerDesc.includes("reorganize") ||
+		lowerDesc.includes("cleanup") ||
+		lowerDesc.includes("clean up")
 	) {
+		return `refactor: ${taskDescription}`
+	}
+
+	if (
+		lowerDesc.includes("perf") ||
+		lowerDesc.includes("performance") ||
+		lowerDesc.includes("optimize") ||
+		lowerDesc.includes("speed")
+	) {
+		return `perf: ${taskDescription}`
+	}
+
+	if (
+		lowerDesc.includes("chore") ||
+		lowerDesc.includes("dependency") ||
+		lowerDesc.includes("dependencies") ||
+		lowerDesc.includes("upgrade") ||
+		lowerDesc.includes("bump")
+	) {
+		return `chore: ${taskDescription}`
+	}
+
+	if (
+		lowerDesc.includes("ci") ||
+		lowerDesc.includes("workflow") ||
+		lowerDesc.includes("pipeline")
+	) {
+		return `ci: ${taskDescription}`
+	}
+
+	if (
+		lowerDesc.includes("build") ||
+		lowerDesc.includes("compile") ||
+		lowerDesc.includes("bundle")
+	) {
+		return `build: ${taskDescription}`
+	}
+
+	if (lowerDesc.includes("style") || lowerDesc.includes("format") || lowerDesc.includes("lint")) {
+		return `style: ${taskDescription}`
+	}
+
+	// Improvement is a common word that could be refactor or perf, default to refactor
+	if (lowerDesc.includes("improve")) {
 		return `refactor: ${taskDescription}`
 	}
 

@@ -158,8 +158,8 @@ describe("git", () => {
 		})
 
 		test("defaults to feat for unrecognized patterns", () => {
-			expect(generateCommitMessage("Update dependencies")).toBe("feat: Update dependencies")
 			expect(generateCommitMessage("Some random task")).toBe("feat: Some random task")
+			expect(generateCommitMessage("Random work")).toBe("feat: Random work")
 		})
 
 		test("is case insensitive", () => {
