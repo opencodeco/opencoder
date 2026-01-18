@@ -147,6 +147,7 @@ export interface ParseFrontmatterResult {
  *
  * @param content - The file content to parse
  * @returns Parse result with found status, fields, and end index
+ * @throws {TypeError} If content is not a string
  */
 export function parseFrontmatter(content: string): ParseFrontmatterResult
 

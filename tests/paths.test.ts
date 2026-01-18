@@ -613,6 +613,48 @@ url: https://example.com
 			const result = parseFrontmatter(content)
 			expect(result.fields.url).toBe("https://example.com")
 		})
+
+		it("should throw TypeError for null input", () => {
+			expect(() => parseFrontmatter(null as unknown as string)).toThrow(TypeError)
+			expect(() => parseFrontmatter(null as unknown as string)).toThrow(
+				"parseFrontmatter: content must be a string, got null",
+			)
+		})
+
+		it("should throw TypeError for undefined input", () => {
+			expect(() => parseFrontmatter(undefined as unknown as string)).toThrow(TypeError)
+			expect(() => parseFrontmatter(undefined as unknown as string)).toThrow(
+				"parseFrontmatter: content must be a string, got undefined",
+			)
+		})
+
+		it("should throw TypeError for number input", () => {
+			expect(() => parseFrontmatter(123 as unknown as string)).toThrow(TypeError)
+			expect(() => parseFrontmatter(123 as unknown as string)).toThrow(
+				"parseFrontmatter: content must be a string, got number",
+			)
+		})
+
+		it("should throw TypeError for object input", () => {
+			expect(() => parseFrontmatter({} as unknown as string)).toThrow(TypeError)
+			expect(() => parseFrontmatter({} as unknown as string)).toThrow(
+				"parseFrontmatter: content must be a string, got object",
+			)
+		})
+
+		it("should throw TypeError for array input", () => {
+			expect(() => parseFrontmatter([] as unknown as string)).toThrow(TypeError)
+			expect(() => parseFrontmatter([] as unknown as string)).toThrow(
+				"parseFrontmatter: content must be a string, got object",
+			)
+		})
+
+		it("should throw TypeError for boolean input", () => {
+			expect(() => parseFrontmatter(true as unknown as string)).toThrow(TypeError)
+			expect(() => parseFrontmatter(true as unknown as string)).toThrow(
+				"parseFrontmatter: content must be a string, got boolean",
+			)
+		})
 	})
 
 	describe("validateAgentContent", () => {

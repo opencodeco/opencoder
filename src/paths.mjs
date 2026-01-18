@@ -208,8 +208,14 @@ export async function retryOnTransientError(fn, options = {}) {
  *
  * @param {string} content - The file content to parse
  * @returns {{ found: boolean, reason?: "missing" | "unclosed", fields: Record<string, string>, endIndex: number }} Parse result
+ * @throws {TypeError} If content is not a string
  */
 export function parseFrontmatter(content) {
+	if (typeof content !== "string") {
+		throw new TypeError(
+			`parseFrontmatter: content must be a string, got ${content === null ? "null" : typeof content}`,
+		)
+	}
 	// Frontmatter must start at the beginning of the file
 	if (!content.startsWith("---")) {
 		return { found: false, reason: "missing", fields: {}, endIndex: 0 }
