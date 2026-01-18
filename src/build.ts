@@ -13,7 +13,7 @@ import {
 	generatePlanPrompt,
 	generateTaskPrompt,
 } from "./plan.ts"
-import type { BuildResult, Config } from "./types.ts"
+import type { BuildResult, Config, SessionStats } from "./types.ts"
 
 /** Type for the OpenCode client */
 type Client = Awaited<ReturnType<typeof createOpencode>>["client"]
@@ -33,7 +33,10 @@ export type Part = TextPart | { type: string; [key: string]: unknown }
 /**
  * Extract text content from message parts
  */
-export function extractText(parts: Part[]): string {
+export function extractText(parts: Part[] | undefined | null): string {
+	if (!parts || !Array.isArray(parts)) {
+		return ""
+	}
 	return parts
 		.filter((p): p is TextPart => p.type === "text" && typeof p.text === "string")
 		.map((p) => p.text)
@@ -60,6 +63,67 @@ export interface EventLogger {
 	logVerbose(message: string): void
 	fileChange(action: string, filePath: string): void
 	step(action: string, detail?: string): void
+}
+
+/**
+ * Model pricing per million tokens (approximate, as of 2024)
+ * Format: { input: $/1M tokens, output: $/1M tokens }
+ */
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+	// Claude models
+	"claude-opus-4": { input: 15.0, output: 75.0 },
+	"claude-sonnet-4": { input: 3.0, output: 15.0 },
+	"claude-3-5-sonnet": { input: 3.0, output: 15.0 },
+	"claude-3-opus": { input: 15.0, output: 75.0 },
+	"claude-3-sonnet": { input: 3.0, output: 15.0 },
+	"claude-3-haiku": { input: 0.25, output: 1.25 },
+	// GPT models
+	"gpt-4o": { input: 2.5, output: 10.0 },
+	"gpt-4o-mini": { input: 0.15, output: 0.6 },
+	"gpt-4-turbo": { input: 10.0, output: 30.0 },
+	"gpt-4": { input: 30.0, output: 60.0 },
+	"gpt-3.5-turbo": { input: 0.5, output: 1.5 },
+	// Default fallback for unknown models
+	default: { input: 3.0, output: 15.0 },
+}
+
+/**
+ * Estimate cost based on model and token usage
+ */
+export function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
+	// Extract model ID from provider/model format
+	const modelId = model.includes("/") ? model.split("/")[1] : model
+
+	// Find matching pricing (check if model name contains any of our known models)
+	let pricing = MODEL_PRICING.default
+	if (modelId) {
+		for (const [key, value] of Object.entries(MODEL_PRICING)) {
+			if (key !== "default" && modelId.toLowerCase().includes(key.toLowerCase())) {
+				pricing = value
+				break
+			}
+		}
+	}
+
+	// Calculate cost (pricing is per million tokens)
+	const inputCost = (inputTokens / 1_000_000) * (pricing?.input ?? 3.0)
+	const outputCost = (outputTokens / 1_000_000) * (pricing?.output ?? 15.0)
+
+	return inputCost + outputCost
+}
+
+/**
+ * Create initial session stats
+ */
+export function createSessionStats(): SessionStats {
+	return {
+		toolCalls: 0,
+		inputTokens: 0,
+		outputTokens: 0,
+		costUsd: 0,
+		filesModified: [],
+		startTime: Date.now(),
+	}
 }
 
 /**
@@ -103,10 +167,22 @@ const IMPORTANT_EVENTS = new Set([
 	"file.deleted",
 ])
 
+/** Callback for tracking session stats from events */
+export type StatsCallback = (update: {
+	toolCall?: boolean
+	inputTokens?: number
+	outputTokens?: number
+	fileModified?: string
+}) => void
+
 /**
  * Handle a single event from the server stream
  */
-export function handleEvent(event: ServerEvent, logger: EventLogger): void {
+export function handleEvent(
+	event: ServerEvent,
+	logger: EventLogger,
+	onStats?: StatsCallback,
+): void {
 	const { type, properties } = event
 
 	switch (type) {
@@ -127,6 +203,8 @@ export function handleEvent(event: ServerEvent, logger: EventLogger): void {
 				logger.stopSpinner()
 				logger.streamEnd()
 				logger.toolCall(name, input)
+				// Track tool call in stats
+				onStats?.({ toolCall: true })
 				// Build spinner message with context from tool input
 				const context = extractToolContext(input)
 				const spinnerMsg = context ? `Running ${name}: ${context}...` : `Running ${name}...`
@@ -159,6 +237,8 @@ export function handleEvent(event: ServerEvent, logger: EventLogger): void {
 			const usage = properties?.usage as { input?: number; output?: number } | undefined
 			if (usage?.input !== undefined && usage?.output !== undefined) {
 				logger.tokens(usage.input, usage.output)
+				// Track token usage in stats
+				onStats?.({ inputTokens: usage.input, outputTokens: usage.output })
 			}
 			break
 		}
@@ -176,6 +256,7 @@ export function handleEvent(event: ServerEvent, logger: EventLogger): void {
 			const filePath = properties?.path || properties?.filePath
 			if (typeof filePath === "string") {
 				logger.fileChange("Edited", filePath)
+				onStats?.({ fileModified: filePath })
 			}
 			break
 		}
@@ -184,6 +265,7 @@ export function handleEvent(event: ServerEvent, logger: EventLogger): void {
 			const filePath = properties?.path || properties?.filePath
 			if (typeof filePath === "string") {
 				logger.fileChange("Created", filePath)
+				onStats?.({ fileModified: filePath })
 			}
 			break
 		}
@@ -192,6 +274,7 @@ export function handleEvent(event: ServerEvent, logger: EventLogger): void {
 			const filePath = properties?.path || properties?.filePath
 			if (typeof filePath === "string") {
 				logger.fileChange("Deleted", filePath)
+				onStats?.({ fileModified: filePath })
 			}
 			break
 		}
@@ -236,10 +319,55 @@ export class Builder {
 	private config: Config
 	private logger: Logger
 	private eventStreamAbort?: AbortController
+	private currentStats: SessionStats = createSessionStats()
 
 	constructor(config: Config, logger: Logger) {
 		this.config = config
 		this.logger = logger
+	}
+
+	/**
+	 * Get current session stats
+	 */
+	getStats(): SessionStats {
+		return { ...this.currentStats }
+	}
+
+	/**
+	 * Reset session stats for a new operation
+	 */
+	resetStats(): void {
+		this.currentStats = createSessionStats()
+	}
+
+	/**
+	 * Handle stats update from event processing
+	 */
+	private handleStatsUpdate(update: {
+		toolCall?: boolean
+		inputTokens?: number
+		outputTokens?: number
+		fileModified?: string
+	}): void {
+		if (update.toolCall) {
+			this.currentStats.toolCalls++
+		}
+		if (update.inputTokens !== undefined) {
+			this.currentStats.inputTokens += update.inputTokens
+		}
+		if (update.outputTokens !== undefined) {
+			this.currentStats.outputTokens += update.outputTokens
+		}
+		if (update.fileModified && !this.currentStats.filesModified.includes(update.fileModified)) {
+			this.currentStats.filesModified.push(update.fileModified)
+		}
+
+		// Update cost estimate
+		this.currentStats.costUsd = estimateCost(
+			this.config.buildModel,
+			this.currentStats.inputTokens,
+			this.currentStats.outputTokens,
+		)
 	}
 
 	/**
@@ -304,8 +432,13 @@ export class Builder {
 		this.logger.phase("Building", `Task ${taskNum}/${totalTasks}`)
 		this.logger.say(`  ${task}`)
 
+		// Ensure we have a valid session before building
 		if (!this.sessionId) {
-			return { success: false, error: "No active session" }
+			try {
+				await this.ensureSession(cycle, `Cycle ${cycle} - Recovery`)
+			} catch (err) {
+				return { success: false, error: `Failed to create session: ${err}` }
+			}
 		}
 
 		const prompt = generateTaskPrompt(task, cycle, taskNum, totalTasks)
@@ -324,8 +457,9 @@ export class Builder {
 	async runEval(cycle: number, planContent: string): Promise<string> {
 		this.logger.phase("Evaluating", `Cycle ${cycle}`)
 
+		// Ensure we have a valid session before evaluating
 		if (!this.sessionId) {
-			throw new Error("No active session")
+			await this.ensureSession(cycle, `Cycle ${cycle} - Eval Recovery`)
 		}
 
 		const prompt = generateEvalPrompt(cycle, planContent)
@@ -435,7 +569,12 @@ export class Builder {
 			throw new Error("No response from OpenCode")
 		}
 
-		return extractText(result.data.parts as Part[])
+		const text = extractText(result.data.parts as Part[] | undefined)
+		if (!text) {
+			throw new Error("Empty response from OpenCode")
+		}
+
+		return text
 	}
 
 	/**
@@ -464,7 +603,7 @@ export class Builder {
 			for await (const event of stream) {
 				if (this.eventStreamAbort?.signal.aborted) break
 
-				handleEvent(event, this.logger)
+				handleEvent(event, this.logger, (update) => this.handleStatsUpdate(update))
 			}
 		} catch (err) {
 			// Stream ended or errored
