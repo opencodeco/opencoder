@@ -4,41 +4,130 @@
 
 import type { Task } from "./types.ts"
 
-/** Task checkbox patterns */
-const UNCOMPLETED_TASK_PATTERN = /^- \[ \] (.+)$/
-const COMPLETED_TASK_PATTERN = /^- \[[xX]\] (.+)$/
+/** Task patterns - supports multiple formats */
+const TASK_PATTERNS = {
+	/** Checkbox uncompleted: - [ ] task */
+	checkboxUncompleted: /^- \[ \] (.+)$/,
+	/** Checkbox completed: - [x] task or - [X] task */
+	checkboxCompleted: /^- \[[xX]\] (.+)$/,
+	/** Numbered list: 1. task, 2. task, etc. */
+	numbered: /^\d+\.\s+(.+)$/,
+	/** Step/Task header: ### Step 1: task, ## Task 2: task, etc. */
+	stepHeader: /^#{1,4}\s*(?:Step|Task)\s*\d*[:.]\s*(.+)$/i,
+	/** Plain bullet: - task or * task */
+	bullet: /^[-*]\s+(.+)$/,
+	/** Done marker for non-checkbox formats */
+	doneMarker: /^\[DONE\]\s*/,
+}
 
 /**
- * Parse tasks from a plan content
+ * Parse tasks from a plan content.
+ * Supports multiple formats: checkboxes, numbered lists, bullets, step headers.
+ * Falls back to treating the entire plan as a single task if no structured tasks found.
  */
 export function getTasks(planContent: string): Task[] {
 	const lines = planContent.split("\n")
 	const tasks: Task[] = []
 
+	// Check if entire plan is marked as completed (fallback task was completed)
+	const isPlanCompleted = planContent.trimStart().startsWith("[COMPLETED]")
+
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i]?.trim()
 		if (!line) continue
 
-		// Check for uncompleted task
-		const uncompletedMatch = line.match(UNCOMPLETED_TASK_PATTERN)
-		if (uncompletedMatch?.[1]) {
+		// Skip the [COMPLETED] marker line
+		if (line === "[COMPLETED]") continue
+
+		// Check for completed checkbox first: - [x] task
+		const checkboxDoneMatch = line.match(TASK_PATTERNS.checkboxCompleted)
+		if (checkboxDoneMatch?.[1]) {
 			tasks.push({
-				lineNumber: i + 1, // 1-indexed
-				description: uncompletedMatch[1].trim(),
+				lineNumber: i + 1,
+				description: checkboxDoneMatch[1].trim(),
+				completed: true,
+			})
+			continue
+		}
+
+		// Check for uncompleted checkbox: - [ ] task
+		const checkboxMatch = line.match(TASK_PATTERNS.checkboxUncompleted)
+		if (checkboxMatch?.[1]) {
+			tasks.push({
+				lineNumber: i + 1,
+				description: checkboxMatch[1].trim(),
 				completed: false,
 			})
 			continue
 		}
 
-		// Check for completed task
-		const completedMatch = line.match(COMPLETED_TASK_PATTERN)
-		if (completedMatch?.[1]) {
+		// Check for numbered list: 1. task
+		const numberedMatch = line.match(TASK_PATTERNS.numbered)
+		if (numberedMatch?.[1]) {
+			const desc = numberedMatch[1].trim()
+			const isDone = TASK_PATTERNS.doneMarker.test(desc)
 			tasks.push({
 				lineNumber: i + 1,
-				description: completedMatch[1].trim(),
-				completed: true,
+				description: isDone ? desc.replace(TASK_PATTERNS.doneMarker, "") : desc,
+				completed: isDone,
 			})
+			continue
 		}
+
+		// Check for step header: ### Step 1: task
+		const stepMatch = line.match(TASK_PATTERNS.stepHeader)
+		if (stepMatch?.[1]) {
+			const desc = stepMatch[1].trim()
+			const isDone = TASK_PATTERNS.doneMarker.test(desc)
+			tasks.push({
+				lineNumber: i + 1,
+				description: isDone ? desc.replace(TASK_PATTERNS.doneMarker, "") : desc,
+				completed: isDone,
+			})
+			continue
+		}
+
+		// Check for plain bullet: - task or * task (but not checkboxes or markdown headers)
+		// Skip lines starting with # (markdown headers like "## Tasks")
+		// Skip checkbox patterns (- [ ] or - [x])
+		const isCheckbox = /^- \[[ xX]\]/.test(line)
+		if (!isCheckbox && !line.startsWith("#")) {
+			const bulletMatch = line.match(TASK_PATTERNS.bullet)
+			if (bulletMatch?.[1]) {
+				const desc = bulletMatch[1].trim()
+				const isDone = TASK_PATTERNS.doneMarker.test(desc)
+				tasks.push({
+					lineNumber: i + 1,
+					description: isDone ? desc.replace(TASK_PATTERNS.doneMarker, "") : desc,
+					completed: isDone,
+				})
+			}
+		}
+	}
+
+	// Fallback: if no structured tasks found, treat entire plan as a single task
+	if (tasks.length === 0 && planContent.trim() && !isPlanCompleted) {
+		// Extract a summary from the first meaningful line (skip empty lines and markdown headers)
+		const firstMeaningfulLine = lines.find((l) => {
+			const trimmed = l.trim()
+			return trimmed && !trimmed.startsWith("#") && trimmed.length > 10
+		})
+		const summary = firstMeaningfulLine?.trim().slice(0, 100) || "Execute plan"
+
+		tasks.push({
+			lineNumber: 1,
+			description: `[FULL PLAN] ${summary}${summary.length >= 100 ? "..." : ""}`,
+			completed: false,
+		})
+	}
+
+	// If plan was marked [COMPLETED] but no structured tasks, return completed fallback task
+	if (tasks.length === 0 && isPlanCompleted) {
+		tasks.push({
+			lineNumber: 1,
+			description: "[FULL PLAN] Completed",
+			completed: true,
+		})
 	}
 
 	return tasks
@@ -52,17 +141,47 @@ export function getUncompletedTasks(planContent: string): Task[] {
 }
 
 /**
- * Mark a task as complete in the plan content
+ * Mark a task as complete in the plan content.
+ * Handles checkboxes (converts to [x]) and other formats (prepends [DONE]).
+ * For fallback tasks (line 1 with no structure), prepends [COMPLETED] to the plan.
  */
 export function markTaskComplete(planContent: string, lineNumber: number): string {
 	const lines = planContent.split("\n")
 	const index = lineNumber - 1 // Convert to 0-indexed
 
+	// Special handling for fallback task (entire plan as single task at line 1)
+	// Check if this is the fallback case by seeing if getTasks would return a [FULL PLAN] task
+	const tasks = getTasks(planContent)
+	const isFallbackTask =
+		tasks.length === 1 && tasks[0]?.description.startsWith("[FULL PLAN]") && lineNumber === 1
+
+	if (isFallbackTask) {
+		// Mark the entire plan as completed by prepending a marker
+		return `[COMPLETED]\n${planContent}`
+	}
+
 	if (index >= 0 && index < lines.length) {
 		const line = lines[index]
 		if (line) {
-			// Replace "- [ ]" with "- [x]"
-			lines[index] = line.replace(/^(\s*)- \[ \]/, "$1- [x]")
+			// If it's a checkbox, check it
+			if (/^(\s*)- \[ \]/.test(line)) {
+				lines[index] = line.replace(/^(\s*)- \[ \]/, "$1- [x]")
+			}
+			// For numbered lists: 1. task -> 1. [DONE] task
+			else if (/^\d+\.\s+/.test(line.trim()) && !line.includes("[DONE]")) {
+				lines[index] = line.replace(/^(\s*)(\d+\.\s+)/, "$1$2[DONE] ")
+			}
+			// For step headers: ### Step 1: task -> ### Step 1: [DONE] task
+			else if (
+				/^#{1,4}\s*(?:Step|Task)\s*\d*[:.]\s*/i.test(line.trim()) &&
+				!line.includes("[DONE]")
+			) {
+				lines[index] = line.replace(/^(\s*#{1,4}\s*(?:Step|Task)\s*\d*[:.]\s*)/i, "$1[DONE] ")
+			}
+			// For plain bullets: - task -> - [DONE] task
+			else if (/^(\s*)[-*]\s+/.test(line) && !line.includes("[DONE]") && !line.includes("- [")) {
+				lines[index] = line.replace(/^(\s*[-*]\s+)/, "$1[DONE] ")
+			}
 		}
 	}
 
@@ -70,7 +189,8 @@ export function markTaskComplete(planContent: string, lineNumber: number): strin
 }
 
 /**
- * Validate that a plan has actionable tasks
+ * Validate that a plan has actionable content.
+ * Always accepts non-empty plans (fallback to single task if no structured tasks).
  */
 export function validatePlan(planContent: string): { valid: boolean; error?: string } {
 	if (!planContent.trim()) {
@@ -79,8 +199,10 @@ export function validatePlan(planContent: string): { valid: boolean; error?: str
 
 	const tasks = getTasks(planContent)
 
+	// getTasks now always returns at least one task for non-empty content (fallback)
+	// So this check is just a safety net
 	if (tasks.length === 0) {
-		return { valid: false, error: "Plan has no actionable tasks" }
+		return { valid: false, error: "Plan is empty" }
 	}
 
 	const uncompletedTasks = tasks.filter((t) => !t.completed)
