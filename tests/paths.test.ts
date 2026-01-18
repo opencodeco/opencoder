@@ -1153,6 +1153,51 @@ This is a test agent that handles various tasks.
 			expect(typeof logger.verbose).toBe("function")
 		})
 
+		it("should throw TypeError for null input", () => {
+			expect(() => createLogger(null as unknown as boolean)).toThrow(TypeError)
+			expect(() => createLogger(null as unknown as boolean)).toThrow(
+				"createLogger: verbose must be a boolean, got null",
+			)
+		})
+
+		it("should throw TypeError for undefined input", () => {
+			expect(() => createLogger(undefined as unknown as boolean)).toThrow(TypeError)
+			expect(() => createLogger(undefined as unknown as boolean)).toThrow(
+				"createLogger: verbose must be a boolean, got undefined",
+			)
+		})
+
+		it("should throw TypeError for string input", () => {
+			expect(() => createLogger("true" as unknown as boolean)).toThrow(TypeError)
+			expect(() => createLogger("true" as unknown as boolean)).toThrow(
+				"createLogger: verbose must be a boolean, got string",
+			)
+			expect(() => createLogger("false" as unknown as boolean)).toThrow(TypeError)
+			expect(() => createLogger("" as unknown as boolean)).toThrow(TypeError)
+		})
+
+		it("should throw TypeError for number input", () => {
+			expect(() => createLogger(1 as unknown as boolean)).toThrow(TypeError)
+			expect(() => createLogger(1 as unknown as boolean)).toThrow(
+				"createLogger: verbose must be a boolean, got number",
+			)
+			expect(() => createLogger(0 as unknown as boolean)).toThrow(TypeError)
+		})
+
+		it("should throw TypeError for object input", () => {
+			expect(() => createLogger({} as unknown as boolean)).toThrow(TypeError)
+			expect(() => createLogger({} as unknown as boolean)).toThrow(
+				"createLogger: verbose must be a boolean, got object",
+			)
+		})
+
+		it("should throw TypeError for array input", () => {
+			expect(() => createLogger([] as unknown as boolean)).toThrow(TypeError)
+			expect(() => createLogger([] as unknown as boolean)).toThrow(
+				"createLogger: verbose must be a boolean, got object",
+			)
+		})
+
 		it("should log messages with log() method", () => {
 			const originalLog = console.log
 			const messages: string[] = []

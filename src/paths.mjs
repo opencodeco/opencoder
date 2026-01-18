@@ -391,6 +391,11 @@ export function parseCliFlags(argv) {
  * logger.verbose("Source: /path/to/src") // Does nothing (verbose disabled)
  */
 export function createLogger(verbose) {
+	if (typeof verbose !== "boolean") {
+		throw new TypeError(
+			`createLogger: verbose must be a boolean, got ${verbose === null ? "null" : typeof verbose}`,
+		)
+	}
 	return {
 		log: (message) => console.log(message),
 		verbose: (message) => {
