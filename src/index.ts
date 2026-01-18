@@ -14,8 +14,10 @@
  * The agents are installed to ~/.config/opencode/agents/ via the postinstall script.
  */
 
-export const name = "opencode-plugin-opencoder"
-export const version = "0.1.0"
-export const description = "Autonomous development agents for continuous codebase improvement"
+import pkg from "../package.json"
+
+export const name = pkg.name
+export const version = pkg.version
+export const description = pkg.description
 
 export const agents = ["opencoder", "opencoder-planner", "opencoder-builder"]
