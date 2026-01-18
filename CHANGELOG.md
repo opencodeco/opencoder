@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Test suite using bun:test for plugin exports and agent files
+- Preuninstall script to clean up agents when plugin is removed
+- CI test job with bun test integration
+- Preuninstall verification in CI workflow
+
+### Changed
+- Refactored index.ts to import metadata from package.json (single source of truth)
+- Expanded biome config to include tests and scripts
+- Updated CI to use `--ignore-scripts` during install for cleaner testing
+- Improved agent instructions for clarity and better results
+
 ## [0.1.0] - 2026-01-18
 
 ### Added
@@ -17,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automatic git operations (commit after each task, push after each cycle)
 - Conventional commit message generation
 - Support for free models (`opencode/glm-4.7-free`, `opencode/minimax-m2.1-free`)
+- Contributing guidelines
 
 ### Changed
 - Complete rewrite from standalone CLI to OpenCode plugin architecture
@@ -30,4 +45,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration file system (agents are self-contained)
 - Ideas queue system (agents decide autonomously)
 - Metrics tracking system
-- Test suite (no runtime code to test)
