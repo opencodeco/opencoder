@@ -13,21 +13,48 @@ export declare const REQUIRED_FRONTMATTER_FIELDS: string[]
 
 /**
  * Get the package root directory from a module's import.meta.url
+ *
+ * @param importMetaUrl - The import.meta.url of the calling module
+ * @returns The package root directory path
  */
 export function getPackageRoot(importMetaUrl: string): string
 
 /**
  * Get the source directory containing agent markdown files.
+ *
+ * @param packageRoot - The package root directory
+ * @returns Path to the agents source directory
  */
 export function getAgentsSourceDir(packageRoot: string): string
 
 /**
  * The target directory where agents are installed.
+ * Located at ~/.config/opencode/agents/
  */
 export declare const AGENTS_TARGET_DIR: string
 
 /**
  * Returns a user-friendly error message based on the error code.
+ *
+ * Translates Node.js filesystem error codes into human-readable messages
+ * that help users understand and resolve installation issues.
+ *
+ * @param error - The error object from a failed fs operation
+ * @param file - The filename being processed
+ * @param targetPath - The target path for the file
+ * @returns A helpful error message describing the issue and potential solution
+ *
+ * @example
+ * // Permission denied error
+ * const err = Object.assign(new Error(), { code: 'EACCES' })
+ * getErrorMessage(err, 'agent.md', '/home/user/.config/opencode/agents/agent.md')
+ * // Returns: "Permission denied. Check write permissions for /home/user/.config/opencode/agents"
+ *
+ * @example
+ * // File not found error
+ * const err = Object.assign(new Error(), { code: 'ENOENT' })
+ * getErrorMessage(err, 'missing.md', '/target/missing.md')
+ * // Returns: "Source file not found: missing.md"
  */
 export function getErrorMessage(
 	error: Error & { code?: string },
@@ -40,6 +67,9 @@ export declare const TRANSIENT_ERROR_CODES: string[]
 
 /**
  * Checks if an error is a transient error that may succeed on retry.
+ *
+ * @param error - The error to check
+ * @returns True if the error is transient (EAGAIN, EBUSY)
  */
 export function isTransientError(error: Error & { code?: string }): boolean
 
@@ -58,6 +88,23 @@ export interface RetryOptions {
  *
  * If the function throws a transient error (EAGAIN, EBUSY), it will be retried
  * up to the specified number of times with a delay between attempts.
+ *
+ * @template T - The return type of the function
+ * @param fn - The function to execute
+ * @param options - Retry options (retries, delayMs)
+ * @returns The result of the function
+ * @throws The last error if all retries fail
+ *
+ * @example
+ * // Retry a file copy operation
+ * await retryOnTransientError(() => copyFileSync(src, dest))
+ *
+ * @example
+ * // Custom retry options
+ * await retryOnTransientError(
+ *   () => unlinkSync(path),
+ *   { retries: 5, delayMs: 200 }
+ * )
  */
 export function retryOnTransientError<T>(
 	fn: () => T | Promise<T>,
@@ -68,8 +115,11 @@ export function retryOnTransientError<T>(
  * Result of parsing YAML frontmatter from markdown content.
  */
 export interface ParseFrontmatterResult {
+	/** Whether frontmatter was found in the content */
 	found: boolean
+	/** Parsed key-value pairs from the frontmatter */
 	fields: Record<string, string>
+	/** Character index where the frontmatter ends (after closing ---\n) */
 	endIndex: number
 }
 
@@ -77,6 +127,9 @@ export interface ParseFrontmatterResult {
  * Parses YAML frontmatter from markdown content.
  *
  * Expects frontmatter to be delimited by --- at the start of the file.
+ *
+ * @param content - The file content to parse
+ * @returns Parse result with found status, fields, and end index
  */
 export function parseFrontmatter(content: string): ParseFrontmatterResult
 
@@ -84,7 +137,9 @@ export function parseFrontmatter(content: string): ParseFrontmatterResult
  * Result of validating agent content.
  */
 export interface ValidateAgentContentResult {
+	/** Whether the content is valid */
 	valid: boolean
+	/** Error message if validation failed */
 	error?: string
 }
 
@@ -96,6 +151,9 @@ export interface ValidateAgentContentResult {
  * 2. Starts with a markdown header (# ) after frontmatter
  * 3. Contains at least MIN_CONTENT_LENGTH characters
  * 4. Contains at least one of the expected keywords
+ *
+ * @param content - The agent file content to validate
+ * @returns Validation result with valid status and optional error message
  */
 export function validateAgentContent(content: string): ValidateAgentContentResult
 
@@ -114,6 +172,13 @@ export function validateAgentContent(content: string): ValidateAgentContentResul
  * @param required - The required version range (e.g., ">=0.1.0", "^1.0.0")
  * @param current - The current version to check (e.g., "1.2.3")
  * @returns True if current version satisfies the required range
+ *
+ * @example
+ * checkVersionCompatibility(">=0.1.0", "0.2.0")  // true
+ * checkVersionCompatibility("^1.0.0", "1.5.0")  // true
+ * checkVersionCompatibility("^1.0.0", "2.0.0")  // false
+ * checkVersionCompatibility("~1.2.0", "1.2.5")  // true
+ * checkVersionCompatibility("~1.2.0", "1.3.0")  // false
  */
 export function checkVersionCompatibility(required: string, current: string): boolean
 
@@ -139,6 +204,19 @@ export interface CliFlags {
  *
  * @param argv - The command line arguments array (typically process.argv)
  * @returns Parsed flags object
+ *
+ * @example
+ * // Parse process.argv
+ * const flags = parseCliFlags(process.argv)
+ * if (flags.help) {
+ *   console.log("Usage: ...")
+ *   process.exit(0)
+ * }
+ *
+ * @example
+ * // Parse custom arguments
+ * const flags = parseCliFlags(["node", "script.js", "--verbose", "--dry-run"])
+ * // flags = { dryRun: true, verbose: true, help: false }
  */
 export function parseCliFlags(argv: string[]): CliFlags
 
@@ -160,6 +238,16 @@ export interface Logger {
  * - `verbose(message)`: Only logs when verbose mode is enabled, prefixed with [VERBOSE]
  *
  * @param verbose - Whether verbose logging is enabled
- * @returns Logger object
+ * @returns Logger object with log and verbose methods
+ *
+ * @example
+ * const logger = createLogger(true)
+ * logger.log("Installing agents...")     // Always prints
+ * logger.verbose("Source: /path/to/src") // Prints: [VERBOSE] Source: /path/to/src
+ *
+ * @example
+ * const logger = createLogger(false)
+ * logger.log("Installing agents...")     // Prints
+ * logger.verbose("Source: /path/to/src") // Does nothing (verbose disabled)
  */
 export function createLogger(verbose: boolean): Logger
