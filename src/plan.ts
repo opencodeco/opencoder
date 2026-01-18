@@ -299,9 +299,9 @@ Begin working on the task now.`
 }
 
 /**
- * Generate the evaluation prompt
+ * Generate the eval prompt
  */
-export function generateEvaluationPrompt(cycle: number, planContent: string): string {
+export function generateEvalPrompt(cycle: number, planContent: string): string {
 	return `You are evaluating cycle ${cycle} of an autonomous development session.
 
 ## Current Plan
