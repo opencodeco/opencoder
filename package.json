@@ -7,6 +7,26 @@
   "bin": {
     "opencoder": "src/index.ts"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/opencodeco/opencoder.git"
+  },
+  "bugs": {
+    "url": "https://github.com/opencodeco/opencoder/issues"
+  },
+  "homepage": "https://github.com/opencodeco/opencoder#readme",
+  "keywords": [
+    "opencode",
+    "autonomous",
+    "development",
+    "ai",
+    "coding-agent",
+    "cli",
+    "automation",
+    "continuous-development"
+  ],
+  "author": "OpenCode Community",
+  "license": "MIT",
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun run src/index.ts",

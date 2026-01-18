@@ -1,6 +1,7 @@
 # OpenCoder state and logs (config.json is user-managed)
 .opencode/opencoder/state.json
 .opencode/opencoder/current_plan.md
+.opencode/opencoder/metrics.json
 .opencode/opencoder/logs/
 .opencode/opencoder/history/
 .opencode/opencoder/alerts.log
