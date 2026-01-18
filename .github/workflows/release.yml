@@ -9,24 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: bun-linux-x64
-            artifact: opencoder-linux-x64
-          - os: ubuntu-latest
-            target: bun-linux-arm64
-            artifact: opencoder-linux-arm64
-          - os: macos-latest
-            target: bun-darwin-x64
-            artifact: opencoder-darwin-x64
-          - os: macos-latest
-            target: bun-darwin-arm64
-            artifact: opencoder-darwin-arm64
-    runs-on: ${{ matrix.os }}
-
+  publish:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -35,49 +19,27 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
       - name: Install dependencies
         run: bun install
 
-      - name: Build release
-        run: bun build --compile --minify --target=${{ matrix.target }} src/index.ts --outfile ${{ matrix.artifact }}
+      - name: Run linter
+        run: bunx biome check src/
 
-      - name: Calculate checksum (Linux)
-        if: runner.os == 'Linux'
-        run: sha256sum ${{ matrix.artifact }} > ${{ matrix.artifact }}.sha256
+      - name: Test postinstall script
+        run: node postinstall.mjs
 
-      - name: Calculate checksum (macOS)
-        if: runner.os == 'macOS'
-        run: shasum -a 256 ${{ matrix.artifact }} > ${{ matrix.artifact }}.sha256
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: |
-            ${{ matrix.artifact }}
-            ${{ matrix.artifact }}.sha256
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-
-      - name: Create checksums.txt
-        working-directory: artifacts
-        run: cat *.sha256 > checksums.txt
-
-      - name: Create release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/opencoder-linux-x64
-            artifacts/opencoder-linux-arm64
-            artifacts/opencoder-darwin-x64
-            artifacts/opencoder-darwin-arm64
-            artifacts/checksums.txt
           generate_release_notes: true

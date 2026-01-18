@@ -7,29 +7,6 @@ on:
     branches: [main]
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Build
-        run: bun run build
-
-      - name: Run tests
-        run: bun test
-
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -44,32 +21,24 @@ jobs:
         run: bun install
 
       - name: Check formatting and lint
-        run: bunx biome check src/ tests/
+        run: bunx biome check src/
 
-  coverage:
+  test-postinstall:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: '20'
 
-      - name: Install dependencies
-        run: bun install
+      - name: Test postinstall script
+        run: node postinstall.mjs
 
-      - name: Generate coverage report
-        run: bun test --coverage --coverage-reporter=text --coverage-reporter=lcov
-
-      - name: Display coverage summary
-        run: cat coverage/coverage.txt || echo "Coverage report not available"
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./coverage/lcov.info
-          flags: unittests
-          name: codecov-umbrella
-          fail_ci_if_error: false
-          verbose: true
+      - name: Verify agents were installed
+        run: |
+          test -f ~/.config/opencode/agents/opencoder.md
+          test -f ~/.config/opencode/agents/opencoder-planner.md
+          test -f ~/.config/opencode/agents/opencoder-builder.md
+          echo "All agents installed successfully"

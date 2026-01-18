@@ -23,6 +23,6 @@
 		}
 	},
 	"files": {
-		"includes": ["src/**/*.ts", "tests/**/*.ts"]
+		"includes": ["src/**/*.ts"]
 	}
 }

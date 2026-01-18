@@ -1,24 +1,6 @@
-# OpenCoder state and logs (config.json is user-managed)
-.opencode/opencoder/state.json
-.opencode/opencoder/current_plan.md
-.opencode/opencoder/metrics.json
-.opencode/opencoder/logs/
-.opencode/opencoder/history/
-.opencode/opencoder/alerts.log
-
-# Bun
+# Dependencies
 node_modules/
 bun.lockb
-
-# Build artifacts
-opencoder
-opencoder-*
-opencoder.exe
-dist/
-
-# Zig build artifacts (legacy)
-.zig-cache/
-zig-out/
 
 # IDE and editor files
 .vscode/
@@ -32,13 +14,5 @@ zig-out/
 .env
 .env.local
 
-# Coverage reports
-coverage/
-
-# Testing artifacts
-test-results/
-
-# Debug files
-*.dSYM/
-*.pdb
-*.map
+# OpenCode
+.opencode/
