@@ -25,7 +25,16 @@ export const AGENT_NAMES = ["opencoder", "opencoder-planner", "opencoder-builder
 /** Minimum character count for valid agent files */
 export const MIN_CONTENT_LENGTH = 100
 
-/** Keywords that should appear in valid agent files (case-insensitive) */
+/**
+ * Keywords that should appear in valid agent files (case-insensitive).
+ *
+ * These specific keywords were chosen because they indicate the file contains
+ * agent-related content:
+ * - "agent": Identifies the file as defining or describing an agent
+ * - "task": Indicates the file contains task execution logic or instructions
+ *
+ * At least one of these keywords must be present for content validation to pass.
+ */
 export const REQUIRED_KEYWORDS = ["agent", "task"]
 
 /** Required fields in YAML frontmatter */

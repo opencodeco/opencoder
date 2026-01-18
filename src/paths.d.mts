@@ -19,8 +19,17 @@ export declare const AGENT_NAMES: string[]
 /** Minimum character count for valid agent files */
 export declare const MIN_CONTENT_LENGTH: number
 
-/** Keywords that should appear in valid agent files (case-insensitive) */
-export declare const REQUIRED_KEYWORDS: string[]
+/**
+ * Keywords that should appear in valid agent files (case-insensitive).
+ *
+ * These specific keywords were chosen because they indicate the file contains
+ * agent-related content:
+ * - "agent": Identifies the file as defining or describing an agent
+ * - "task": Indicates the file contains task execution logic or instructions
+ *
+ * At least one of these keywords must be present for content validation to pass.
+ */
+export declare const REQUIRED_KEYWORDS: readonly ["agent", "task"]
 
 /** Required fields in YAML frontmatter */
 export declare const REQUIRED_FRONTMATTER_FIELDS: string[]
