@@ -2,16 +2,16 @@
  * Tests for ideas module
  */
 
-import { describe, expect, test, beforeEach, afterEach } from "bun:test"
-import { mkdirSync, rmSync, existsSync } from "node:fs"
+import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { existsSync, mkdirSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import {
-	loadAllIdeas,
+	countIdeas,
 	formatIdeasForSelection,
 	getIdeaSummary,
-	removeIdea,
+	loadAllIdeas,
 	parseIdeaSelection,
-	countIdeas,
+	removeIdea,
 } from "../src/ideas.ts"
 
 const TEST_DIR = "/tmp/opencoder-test-ideas"

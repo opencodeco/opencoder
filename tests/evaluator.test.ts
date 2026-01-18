@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, test } from "bun:test"
-import { parseEvaluation, isComplete, extractEvaluationReason } from "../src/evaluator.ts"
+import { extractEvaluationReason, isComplete, parseEvaluation } from "../src/evaluator.ts"
 
 describe("evaluator", () => {
 	describe("parseEvaluation", () => {
