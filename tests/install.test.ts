@@ -283,6 +283,41 @@ const AGENTS_TARGET_DIR = "${agentsTargetDir.replace(/\\/g, "/")}"
 
 const MIN_CONTENT_LENGTH = 100
 const REQUIRED_KEYWORDS = ["agent", "task"]
+const REQUIRED_FRONTMATTER_FIELDS = ["version", "requires"]
+
+function parseFrontmatter(content) {
+	if (!content.startsWith("---")) {
+		return { found: false, fields: {}, endIndex: 0 }
+	}
+
+	const endMatch = content.indexOf("\\n---", 3)
+	if (endMatch === -1) {
+		return { found: false, fields: {}, endIndex: 0 }
+	}
+
+	const frontmatterContent = content.slice(4, endMatch)
+	const fields = {}
+
+	for (const line of frontmatterContent.split("\\n")) {
+		const trimmed = line.trim()
+		if (!trimmed || trimmed.startsWith("#")) continue
+
+		const colonIndex = trimmed.indexOf(":")
+		if (colonIndex === -1) continue
+
+		const key = trimmed.slice(0, colonIndex).trim()
+		let value = trimmed.slice(colonIndex + 1).trim()
+
+		if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+			value = value.slice(1, -1)
+		}
+
+		fields[key] = value
+	}
+
+	const endIndex = endMatch + 4
+	return { found: true, fields, endIndex }
+}
 
 function validateAgentContent(filePath) {
 	const content = readFileSync(filePath, "utf-8")
@@ -294,10 +329,28 @@ function validateAgentContent(filePath) {
 		}
 	}
 
-	if (!content.startsWith("# ")) {
+	const frontmatter = parseFrontmatter(content)
+	if (!frontmatter.found) {
 		return {
 			valid: false,
-			error: "File does not start with a markdown header (# )",
+			error: "File missing YAML frontmatter (must start with ---)",
+		}
+	}
+
+	const missingFields = REQUIRED_FRONTMATTER_FIELDS.filter((field) => !frontmatter.fields[field])
+	if (missingFields.length > 0) {
+		return {
+			valid: false,
+			error: \`Frontmatter missing required fields: \${missingFields.join(", ")}\`,
+		}
+	}
+
+	const contentAfterFrontmatter = content.slice(frontmatter.endIndex).trimStart()
+
+	if (!contentAfterFrontmatter.startsWith("# ")) {
+		return {
+			valid: false,
+			error: "File does not have a markdown header (# ) after frontmatter",
 		}
 	}
 
@@ -387,8 +440,13 @@ main()
 `
 		}
 
-		// Valid agent content for tests (meets all requirements)
-		const validAgentContent = `# Test Agent
+		// Valid agent content for tests (meets all requirements including frontmatter)
+		const validAgentContent = `---
+version: 0.1.0
+requires: ">=0.1.0"
+---
+
+# Test Agent
 
 This is a valid agent file that contains enough content to pass the minimum length requirement.
 
@@ -426,11 +484,101 @@ The agent handles various tasks and operations in the system.
 			expect(stderr).toContain("File too short")
 		})
 
-		it("should reject files without markdown header", async () => {
-			// Create a file without markdown header
-			const contentWithoutHeader = `This file does not start with a markdown header.
+		it("should reject files without YAML frontmatter", async () => {
+			// Create a file without frontmatter (starts with header directly)
+			const contentWithoutFrontmatter = `# Test Agent Without Frontmatter
+
+This file does not have YAML frontmatter at the start.
 It has enough content and contains the word agent and task.
-This should fail the validation because it doesn't start with # symbol.`
+This should fail the validation because it doesn't start with ---.`
+			writeFileSync(join(agentsSourceDir, "no-frontmatter.md"), contentWithoutFrontmatter)
+
+			const scriptPath = join(mockProjectDir, "test-postinstall.mjs")
+			writeFileSync(scriptPath, createPostinstallWithIntegrity())
+
+			const proc = Bun.spawn(["node", scriptPath], {
+				cwd: mockProjectDir,
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			await proc.exited
+
+			const stderr = await new Response(proc.stderr).text()
+			expect(stderr).toContain("no-frontmatter.md")
+			expect(stderr).toContain("missing YAML frontmatter")
+		})
+
+		it("should reject files with frontmatter missing required fields", async () => {
+			// Create a file with frontmatter but missing 'requires' field
+			const contentMissingRequires = `---
+version: 0.1.0
+---
+
+# Test Agent
+
+This file has frontmatter but is missing the requires field.
+It contains the word agent and task to pass keyword validation.
+This should fail because requires is a required frontmatter field.`
+			writeFileSync(join(agentsSourceDir, "missing-requires.md"), contentMissingRequires)
+
+			const scriptPath = join(mockProjectDir, "test-postinstall.mjs")
+			writeFileSync(scriptPath, createPostinstallWithIntegrity())
+
+			const proc = Bun.spawn(["node", scriptPath], {
+				cwd: mockProjectDir,
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			await proc.exited
+
+			const stderr = await new Response(proc.stderr).text()
+			expect(stderr).toContain("missing-requires.md")
+			expect(stderr).toContain("Frontmatter missing required fields")
+			expect(stderr).toContain("requires")
+		})
+
+		it("should reject files with frontmatter missing version field", async () => {
+			// Create a file with frontmatter but missing 'version' field
+			const contentMissingVersion = `---
+requires: ">=0.1.0"
+---
+
+# Test Agent
+
+This file has frontmatter but is missing the version field.
+It contains the word agent and task to pass keyword validation.
+This should fail because version is a required frontmatter field.`
+			writeFileSync(join(agentsSourceDir, "missing-version.md"), contentMissingVersion)
+
+			const scriptPath = join(mockProjectDir, "test-postinstall.mjs")
+			writeFileSync(scriptPath, createPostinstallWithIntegrity())
+
+			const proc = Bun.spawn(["node", scriptPath], {
+				cwd: mockProjectDir,
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			await proc.exited
+
+			const stderr = await new Response(proc.stderr).text()
+			expect(stderr).toContain("missing-version.md")
+			expect(stderr).toContain("Frontmatter missing required fields")
+			expect(stderr).toContain("version")
+		})
+
+		it("should reject files without markdown header after frontmatter", async () => {
+			// Create a file with frontmatter but no header after it
+			const contentWithoutHeader = `---
+version: 0.1.0
+requires: ">=0.1.0"
+---
+
+This file has valid frontmatter but no markdown header after it.
+It has enough content and contains the word agent and task.
+This should fail the validation because it needs a # header.`
 			writeFileSync(join(agentsSourceDir, "no-header.md"), contentWithoutHeader)
 
 			const scriptPath = join(mockProjectDir, "test-postinstall.mjs")
@@ -446,12 +594,17 @@ This should fail the validation because it doesn't start with # symbol.`
 
 			const stderr = await new Response(proc.stderr).text()
 			expect(stderr).toContain("no-header.md")
-			expect(stderr).toContain("does not start with a markdown header")
+			expect(stderr).toContain("does not have a markdown header")
 		})
 
 		it("should reject files missing required keywords", async () => {
-			// Create a file with header and length but missing keywords
-			const contentWithoutKeywords = `# Valid Header
+			// Create a file with frontmatter, header, and length but missing keywords
+			const contentWithoutKeywords = `---
+version: 0.1.0
+requires: ">=0.1.0"
+---
+
+# Valid Header
 
 This file has a valid markdown header and enough content length.
 However, it does not contain any of the required keywords.
@@ -565,7 +718,12 @@ This should fail the validation check for missing keywords.`
 		})
 
 		it("should accept keyword 'agent' case-insensitively", async () => {
-			const contentWithUpperAgent = `# Test File
+			const contentWithUpperAgent = `---
+version: 0.1.0
+requires: ">=0.1.0"
+---
+
+# Test File
 
 This file contains the word AGENT in uppercase and has enough content.
 The validation should accept this because keyword matching is case-insensitive.
@@ -589,7 +747,12 @@ Adding more text to ensure minimum length requirement is satisfied here.`
 		})
 
 		it("should accept keyword 'task' as alternative to 'agent'", async () => {
-			const contentWithTask = `# Test File
+			const contentWithTask = `---
+version: 0.1.0
+requires: ">=0.1.0"
+---
+
+# Test File
 
 This file contains the word TASK but not the other keyword.
 The validation should accept this because either keyword is sufficient.
