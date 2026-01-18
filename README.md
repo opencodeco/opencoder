@@ -59,7 +59,7 @@ Instead of interactive sessions where you guide the AI, OpenCoder creates an *au
 
 ### The Philosophy
 
-OpenCoder treats software development as an **infinite game**. There's always another test to write, another edge case to handle, another optimization to make. OpenCoder embraces this by never declaring "done"—it continuously cycles through plan, build, and evaluation until you tell it to stop.
+OpenCoder treats software development as an **infinite game**. There's always another test to write, another edge case to handle, another optimization to make. OpenCoder embraces this by never declaring "done"—it continuously cycles through plan, build, and eval until you tell it to stop.
 
 ## Installation
 
@@ -125,7 +125,7 @@ opencoder -P anthropic/claude-opus-4 -B anthropic/claude-sonnet-4
 | Flag | Description |
 |------|-------------|
 | `-m, --model MODEL` | Model for both plan and build (provider/model format) |
-| `-P, --plan-model MODEL` | Model for plan/evaluation phases |
+| `-P, --plan-model MODEL` | Model for plan/eval phases |
 | `-B, --build-model MODEL` | Model for build phase |
 | `-p, --project DIR` | Project directory (default: current directory) |
 | `-v, --verbose` | Enable verbose logging |
@@ -148,7 +148,7 @@ OpenCoder implements an **agentic development loop** with three phases:
 
 ```
      +-------------+     +-------------+     +-------------+
-     |  Planning   |---->|    Build    |---->| Evaluation  |
+     |  Planning   |---->|    Build    |---->|    Eval     |
      |    Phase    |     |    Phase    |     |    Phase    |
      +-------------+     +-------------+     +-------------+
             ^                                       |
@@ -159,7 +159,7 @@ OpenCoder implements an **agentic development loop** with three phases:
 
 1. **Plan Phase** - Analyzes the project and creates a markdown checklist with 3-7 actionable tasks
 2. **Build Phase** - Works through each task sequentially, making code changes
-3. **Evaluation Phase** - Reviews completed work and decides whether to start a new cycle (COMPLETE/NEEDS_WORK)
+3. **Eval Phase** - Reviews completed work and decides whether to start a new cycle (COMPLETE/NEEDS_WORK)
 
 The loop continues indefinitely until manually stopped (Ctrl+C).
 
