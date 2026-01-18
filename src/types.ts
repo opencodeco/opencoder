@@ -137,6 +137,28 @@ export interface Metrics {
 	firstRunTime?: string
 	/** ISO timestamp of last activity */
 	lastActivityTime: string
+	/** Total input tokens used */
+	totalInputTokens: number
+	/** Total output tokens used */
+	totalOutputTokens: number
+	/** Total estimated cost in USD */
+	totalCostUsd: number
+}
+
+/** Session statistics for a single build/plan operation */
+export interface SessionStats {
+	/** Number of tool calls made */
+	toolCalls: number
+	/** Input tokens used */
+	inputTokens: number
+	/** Output tokens used */
+	outputTokens: number
+	/** Estimated cost in USD */
+	costUsd: number
+	/** Files modified */
+	filesModified: string[]
+	/** Start time */
+	startTime: number
 }
 
 /** Result of task build */
@@ -181,4 +203,5 @@ export interface CliOptions {
 	autoPush?: boolean
 	commitSignoff?: boolean
 	status?: boolean
+	metricsReset?: boolean
 }

@@ -6,8 +6,10 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { existsSync, mkdirSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import {
+	formatCost,
 	formatDuration,
 	formatMetricsSummary,
+	formatTokenCount,
 	getAverageCycleDuration,
 	getTaskSuccessRate,
 	loadMetrics,
@@ -18,6 +20,7 @@ import {
 	recordTaskCompleted,
 	recordTaskFailed,
 	recordTaskSkipped,
+	recordTokenUsage,
 	resetMetrics,
 	saveMetrics,
 } from "../src/metrics.ts"
@@ -37,6 +40,9 @@ function createTestMetrics(overrides?: Partial<Metrics>): Metrics {
 		ideasProcessed: 0,
 		totalCycleDurationMs: 0,
 		lastActivityTime: new Date().toISOString(),
+		totalInputTokens: 0,
+		totalOutputTokens: 0,
+		totalCostUsd: 0,
 		...overrides,
 	}
 }
@@ -326,8 +332,71 @@ describe("metrics", () => {
 
 			expect(metrics.cyclesCompleted).toBe(0)
 			expect(metrics.tasksCompleted).toBe(0)
+			expect(metrics.totalInputTokens).toBe(0)
+			expect(metrics.totalOutputTokens).toBe(0)
+			expect(metrics.totalCostUsd).toBe(0)
 			expect(metrics.firstRunTime).toBeTruthy()
 			expect(metrics.lastActivityTime).toBeTruthy()
+		})
+	})
+
+	describe("recordTokenUsage", () => {
+		test("accumulates token counts and cost", () => {
+			let metrics = createTestMetrics()
+
+			metrics = recordTokenUsage(metrics, 1000, 500, 0.05)
+			expect(metrics.totalInputTokens).toBe(1000)
+			expect(metrics.totalOutputTokens).toBe(500)
+			expect(metrics.totalCostUsd).toBeCloseTo(0.05, 4)
+
+			metrics = recordTokenUsage(metrics, 2000, 1000, 0.1)
+			expect(metrics.totalInputTokens).toBe(3000)
+			expect(metrics.totalOutputTokens).toBe(1500)
+			expect(metrics.totalCostUsd).toBeCloseTo(0.15, 4)
+		})
+
+		test("handles zero values", () => {
+			let metrics = createTestMetrics()
+
+			metrics = recordTokenUsage(metrics, 0, 0, 0)
+			expect(metrics.totalInputTokens).toBe(0)
+			expect(metrics.totalOutputTokens).toBe(0)
+			expect(metrics.totalCostUsd).toBe(0)
+		})
+	})
+
+	describe("formatTokenCount", () => {
+		test("formats small numbers", () => {
+			expect(formatTokenCount(0)).toBe("0")
+			expect(formatTokenCount(123)).toBe("123")
+			expect(formatTokenCount(999)).toBe("999")
+		})
+
+		test("formats thousands as K", () => {
+			expect(formatTokenCount(1000)).toBe("1.0K")
+			expect(formatTokenCount(1500)).toBe("1.5K")
+			expect(formatTokenCount(50000)).toBe("50.0K")
+			expect(formatTokenCount(999999)).toBe("1000.0K")
+		})
+
+		test("formats millions as M", () => {
+			expect(formatTokenCount(1000000)).toBe("1.0M")
+			expect(formatTokenCount(1500000)).toBe("1.5M")
+			expect(formatTokenCount(10000000)).toBe("10.0M")
+		})
+	})
+
+	describe("formatCost", () => {
+		test("formats small costs with 4 decimals", () => {
+			expect(formatCost(0.001)).toBe("$0.0010")
+			expect(formatCost(0.0099)).toBe("$0.0099")
+		})
+
+		test("formats normal costs with 2 decimals", () => {
+			expect(formatCost(0.01)).toBe("$0.01")
+			expect(formatCost(0.1)).toBe("$0.10")
+			expect(formatCost(1.0)).toBe("$1.00")
+			expect(formatCost(10.5)).toBe("$10.50")
 		})
 	})
 })
