@@ -8,7 +8,7 @@
 
 - **Autonomous Development Loop** - Continuously plans, builds, and evaluates without stopping
 - **OpenCode SDK Integration** - Direct SDK integration with real-time event streaming
-- **Ideas Queue** - Drop markdown files in `.opencoder/ideas/` to prioritize specific tasks before autonomous plan
+- **Ideas Queue** - Drop markdown files in `.opencode/opencoder/ideas/` to prioritize specific tasks before autonomous plan
 - **Two-Model Architecture** - Uses a high-capability model for plan and a faster model for building
 - **Live Output Streaming** - Real-time display of AI thinking, tool calls, and results
 - **State Persistence** - Resumes from where it left off after interruptions (JSON format)
@@ -163,9 +163,9 @@ The loop continues indefinitely until manually stopped (Ctrl+C).
 
 ## Configuration
 
-### Config File (opencoder.json)
+### Config File (.opencode/opencoder/config.json)
 
-Create an `opencoder.json` in your project directory:
+Create a `.opencode/opencoder/config.json` in your project:
 
 ```json
 {
@@ -195,27 +195,29 @@ Create an `opencoder.json` in your project directory:
 Configuration is merged in this order (later overrides earlier):
 
 1. Defaults (hardcoded)
-2. `opencoder.json` in project directory
+2. `.opencode/opencoder/config.json` in project directory
 3. Environment variables (`OPENCODER_*`)
 4. CLI arguments
 
 ## Directory Structure
 
-OpenCoder creates a `.opencoder/` directory in your project:
+OpenCoder creates a `.opencode/opencoder/` directory in your project:
 
 ```
-.opencoder/
-├── state.json               # Current state (JSON)
-├── current_plan.md          # Active task plan
-├── ideas/                   # Drop .md files here to queue tasks
-│   ├── feature-x.md
-│   └── bugfix-y.md
-├── history/                 # Archived completed plans
-│   └── plan_YYYYMMDD_HHMMSS_cycleN.md
-└── logs/
-    ├── main.log             # Main rotating log
-    └── cycles/              # Per-cycle detailed logs
-        └── cycle_001.log
+.opencode/
+└── opencoder/
+    ├── config.json              # Configuration file
+    ├── state.json               # Current state (JSON)
+    ├── current_plan.md          # Active task plan
+    ├── ideas/                   # Drop .md files here to queue tasks
+    │   ├── feature-x.md
+    │   └── bugfix-y.md
+    ├── history/                 # Archived completed plans
+    │   └── plan_YYYYMMDD_HHMMSS_cycleN.md
+    └── logs/
+        ├── main.log             # Main rotating log
+        └── cycles/              # Per-cycle detailed logs
+            └── cycle_001.log
 ```
 
 ## Plan Format
@@ -244,13 +246,13 @@ Using bcrypt for password hashing, JWT for tokens.
 
 ## Ideas Queue
 
-Want to direct OpenCoder toward specific tasks? Drop markdown files in `.opencoder/ideas/` and OpenCoder will prioritize them before generating its own plans.
+Want to direct OpenCoder toward specific tasks? Drop markdown files in `.opencode/opencoder/ideas/` and OpenCoder will prioritize them before generating its own plans.
 
 ### Quick Start
 
 ```bash
 # Create an idea
-cat > .opencoder/ideas/add-dark-mode.md << 'EOF'
+cat > .opencode/opencoder/ideas/add-dark-mode.md << 'EOF'
 # Add Dark Mode
 
 Add dark mode toggle with system preference detection.
@@ -267,7 +269,7 @@ opencoder -m anthropic/claude-sonnet-4
 
 ### How It Works
 
-1. **Before Planning** - OpenCoder checks `.opencoder/ideas/` for `.md` files
+1. **Before Planning** - OpenCoder checks `.opencode/opencoder/ideas/` for `.md` files
 2. **Smart Selection**:
    - **1 idea**: Uses it directly (no extra API call)
    - **2+ ideas**: AI evaluates all and picks the simplest/quick-win, considering dependencies
@@ -301,10 +303,10 @@ The AI prioritizes based on:
 ## Tips
 
 - **Start with a clear hint** - The more specific your instruction, the better the initial plan
-- **Use ideas for focus** - Drop task files in `.opencoder/ideas/` to direct development
+- **Use ideas for focus** - Drop task files in `.opencode/opencoder/ideas/` to direct development
 - **Let it run** - OpenCoder is designed to run continuously; trust the loop
-- **Check the logs** - Detailed logs are in `.opencoder/logs/` if something goes wrong
-- **Review history** - Completed plans are archived in `.opencoder/history/`
+- **Check the logs** - Detailed logs are in `.opencode/opencoder/logs/` if something goes wrong
+- **Review history** - Completed plans are archived in `.opencode/opencoder/history/`
 
 ## Development
 

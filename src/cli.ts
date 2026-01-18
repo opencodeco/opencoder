@@ -73,7 +73,7 @@ Environment variables:
     OPENCODER_VERBOSE           Enable verbose logging (true/1)
     OPENCODER_PROJECT_DIR       Default project directory
 
-Config file (opencoder.json):
+Config file (.opencode/opencoder/config.json):
     {
       "planModel": "anthropic/claude-sonnet-4",
       "buildModel": "anthropic/claude-sonnet-4",

@@ -251,7 +251,7 @@ describe("module", () => {
 ### Config Priority (lowest to highest)
 
 1. Defaults (hardcoded)
-2. `opencoder.json` in project directory
+2. `.opencode/opencoder/config.json` in project directory
 3. Environment variables (`OPENCODER_*`)
 4. CLI arguments
 
@@ -267,7 +267,7 @@ OPENCODER_LOG_RETENTION=30
 OPENCODER_TASK_PAUSE_SECONDS=2
 ```
 
-### Config File (opencoder.json)
+### Config File (.opencode/opencoder/config.json)
 
 ```json
 {
@@ -301,7 +301,7 @@ Opencoder includes an **ideas queue system** that allows users to provide specif
 
 ### How It Works
 
-1. **Ideas Directory**: `.opencoder/ideas/` - Users place `.md` files here
+1. **Ideas Directory**: `.opencode/opencoder/ideas/` - Users place `.md` files here
 2. **Plan Integration**: Before each plan cycle, the loop checks for ideas
 3. **Selection Logic**:
    - **1 idea**: Used directly (no AI selection call)
@@ -343,8 +343,8 @@ Steps:
 bun test tests/ideas.test.ts
 
 # Test full integration
-mkdir -p test-project/.opencoder/ideas
-echo "# Test idea" > test-project/.opencoder/ideas/test.md
+mkdir -p test-project/.opencode/opencoder/ideas
+echo "# Test idea" > test-project/.opencode/opencoder/ideas/test.md
 bun run dev -- -m anthropic/claude-sonnet-4 -p test-project
 ```
 
@@ -361,7 +361,7 @@ bun run dev -- -m anthropic/claude-sonnet-4 -p test-project
 2. **Build Phase**: Build tasks from the plan one by one
 3. **Evaluation Phase**: AI evaluates if cycle is complete (COMPLETE/NEEDS_WORK)
 
-State is persisted to `.opencoder/state.json` after each phase for resumability.
+State is persisted to `.opencode/opencoder/state.json` after each phase for resumability.
 
 ## CI Pipeline
 

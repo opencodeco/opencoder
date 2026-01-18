@@ -6,14 +6,15 @@ import { existsSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync } 
 import { join, resolve } from "node:path"
 import type { Paths } from "./types.ts"
 
-/** Name of the workspace directory */
-const OPENCODER_DIR = ".opencoder"
+/** Name of the workspace directory (inside .opencode) */
+const OPENCODE_DIR = ".opencode"
+const OPENCODER_SUBDIR = "opencoder"
 
 /**
  * Initialize all workspace paths for a project
  */
 export function initializePaths(projectDir: string): Paths {
-	const opencoderDir = join(resolve(projectDir), OPENCODER_DIR)
+	const opencoderDir = join(resolve(projectDir), OPENCODE_DIR, OPENCODER_SUBDIR)
 
 	return {
 		opencoderDir,
@@ -24,7 +25,7 @@ export function initializePaths(projectDir: string): Paths {
 		alertsFile: join(opencoderDir, "alerts.log"),
 		historyDir: join(opencoderDir, "history"),
 		ideasDir: join(opencoderDir, "ideas"),
-		configFile: join(resolve(projectDir), "opencoder.json"),
+		configFile: join(opencoderDir, "config.json"),
 	}
 }
 

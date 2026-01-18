@@ -3,14 +3,14 @@
  *
  * Priority (lowest to highest):
  * 1. Defaults
- * 2. opencoder.json in project directory
+ * 2. .opencode/opencoder/config.json in project directory
  * 3. Environment variables
  * 4. CLI arguments
  */
 
 import { existsSync } from "node:fs"
 import { readFile } from "node:fs/promises"
-import { resolve } from "node:path"
+import { join, resolve } from "node:path"
 import type { CliOptions, Config, ConfigFile } from "./types.ts"
 
 /** Default configuration values */
@@ -80,10 +80,10 @@ function resolveProjectDir(cliProject?: string): string {
 }
 
 /**
- * Load configuration from opencoder.json file
+ * Load configuration from .opencode/opencoder/config.json file
  */
 async function loadConfigFile(projectDir: string): Promise<Partial<Config>> {
-	const configPath = resolve(projectDir, "opencoder.json")
+	const configPath = join(resolve(projectDir), ".opencode", "opencoder", "config.json")
 
 	if (!existsSync(configPath)) {
 		return {}
@@ -103,7 +103,7 @@ async function loadConfigFile(projectDir: string): Promise<Partial<Config>> {
 			taskPauseSeconds: parsed.taskPauseSeconds,
 		}
 	} catch (err) {
-		console.warn(`Warning: Failed to parse opencoder.json: ${err}`)
+		console.warn(`Warning: Failed to parse config.json: ${err}`)
 		return {}
 	}
 }
@@ -156,13 +156,13 @@ function loadEnvConfig(): Partial<Config> {
 function validateConfig(config: Config): void {
 	if (!config.planModel) {
 		throw new Error(
-			"Missing plan model. Provide via --model, --plan-model, opencoder.json, or OPENCODER_PLAN_MODEL env var.",
+			"Missing plan model. Provide via --model, --plan-model, .opencode/opencoder/config.json, or OPENCODER_PLAN_MODEL env var.",
 		)
 	}
 
 	if (!config.buildModel) {
 		throw new Error(
-			"Missing build model. Provide via --model, --build-model, opencoder.json, or OPENCODER_BUILD_MODEL env var.",
+			"Missing build model. Provide via --model, --build-model, .opencode/opencoder/config.json, or OPENCODER_BUILD_MODEL env var.",
 		)
 	}
 
