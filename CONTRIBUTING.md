@@ -22,6 +22,9 @@ Thank you for considering contributing to OpenCoder! This document outlines the 
 # Install dependencies
 bun install
 
+# Run type checker
+bun run typecheck
+
 # Run linter
 bun run lint
 
@@ -80,9 +83,10 @@ Example: `feat: add cycle limit option to orchestrator`
 ## Pull Requests
 
 1. Ensure all tests pass: `bun test`
-2. Ensure code is linted: `bun run lint`
-3. Write a clear PR description
-4. Reference any related issues
+2. Ensure types are correct: `bun run typecheck`
+3. Ensure code is linted: `bun run lint`
+4. Write a clear PR description
+5. Reference any related issues
 
 ## Reporting Issues
 
