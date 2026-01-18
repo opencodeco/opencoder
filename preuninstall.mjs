@@ -15,6 +15,7 @@ import {
 	getAgentsSourceDir,
 	getErrorMessage,
 	getPackageRoot,
+	retryOnTransientError,
 } from "./src/paths.mjs"
 
 const packageRoot = getPackageRoot(import.meta.url)
@@ -46,7 +47,7 @@ function verbose(message) {
  * The function handles missing directories and files gracefully,
  * continuing to remove remaining agents even if some fail.
  *
- * @returns {void}
+ * @returns {Promise<void>}
  *
  * @throws {never} Does not throw - handles all errors internally
  *
@@ -54,7 +55,7 @@ function verbose(message) {
  * - 0: Always exits successfully, even if no agents were removed or
  *      some removals failed. This ensures npm uninstall completes.
  */
-function main() {
+async function main() {
 	const prefix = DRY_RUN ? "[DRY-RUN] " : ""
 	console.log(`${prefix}opencode-plugin-opencoder: Removing agents...`)
 
@@ -105,7 +106,7 @@ function main() {
 					console.log(`${prefix}Would remove: ${targetPath}`)
 					removedCount++
 				} else {
-					unlinkSync(targetPath)
+					await retryOnTransientError(() => unlinkSync(targetPath))
 					console.log(`  Removed: ${file}`)
 					removedCount++
 				}
@@ -129,4 +130,7 @@ function main() {
 	}
 }
 
-main()
+main().catch((err) => {
+	console.error("opencode-plugin-opencoder: Unexpected error:", err.message)
+	// Don't exit with error code - we want uninstall to succeed
+})

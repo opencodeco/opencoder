@@ -88,9 +88,84 @@ export function getErrorMessage(error, file, targetPath) {
 			return `Target already exists: ${targetPath}`
 		case "EISDIR":
 			return `Expected a file but found a directory: ${targetPath}`
+		case "EAGAIN":
+			return "Resource temporarily unavailable. Try again"
+		case "EBUSY":
+			return "File is busy or locked. Try again later"
 		default:
 			return error.message || "Unknown error"
 	}
+}
+
+/** Error codes that indicate transient errors that may succeed on retry */
+export const TRANSIENT_ERROR_CODES = ["EAGAIN", "EBUSY"]
+
+/**
+ * Checks if an error is a transient error that may succeed on retry.
+ *
+ * @param {Error & {code?: string}} error - The error to check
+ * @returns {boolean} True if the error is transient
+ */
+export function isTransientError(error) {
+	return TRANSIENT_ERROR_CODES.includes(error.code)
+}
+
+/**
+ * Delays execution for the specified number of milliseconds.
+ *
+ * @param {number} ms - Milliseconds to wait
+ * @returns {Promise<void>}
+ */
+function delay(ms) {
+	return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Retries a function on transient filesystem errors.
+ *
+ * If the function throws a transient error (EAGAIN, EBUSY), it will be retried
+ * up to the specified number of times with a delay between attempts.
+ *
+ * @template T
+ * @param {() => T | Promise<T>} fn - The function to execute
+ * @param {{ retries?: number, delayMs?: number }} [options] - Retry options
+ * @returns {Promise<T>} The result of the function
+ * @throws {Error} The last error if all retries fail
+ *
+ * @example
+ * // Retry a file copy operation
+ * await retryOnTransientError(() => copyFileSync(src, dest))
+ *
+ * @example
+ * // Custom retry options
+ * await retryOnTransientError(
+ *   () => unlinkSync(path),
+ *   { retries: 5, delayMs: 200 }
+ * )
+ */
+export async function retryOnTransientError(fn, options = {}) {
+	const { retries = 3, delayMs = 100 } = options
+	let lastError
+
+	for (let attempt = 0; attempt <= retries; attempt++) {
+		try {
+			return await fn()
+		} catch (err) {
+			lastError = err
+			const isTransient = isTransientError(err)
+
+			// If not a transient error or last attempt, throw immediately
+			if (!isTransient || attempt === retries) {
+				throw err
+			}
+
+			// Wait before retrying
+			await delay(delayMs)
+		}
+	}
+
+	// This should never be reached, but TypeScript needs it
+	throw lastError
 }
 
 /**

@@ -15,6 +15,7 @@ import {
 	getAgentsSourceDir,
 	getErrorMessage,
 	getPackageRoot,
+	retryOnTransientError,
 	validateAgentContent,
 } from "./src/paths.mjs"
 
@@ -58,7 +59,7 @@ function validateAgentFile(filePath) {
  * The function handles partial failures gracefully, installing as many
  * agents as possible and reporting individual failures.
  *
- * @returns {void}
+ * @returns {Promise<void>}
  *
  * @throws {never} Does not throw - uses process.exit() for error conditions
  *
@@ -67,7 +68,7 @@ function validateAgentFile(filePath) {
  * - 1: Complete failure - source directory missing, no agent files found,
  *      or all file copies failed
  */
-function main() {
+async function main() {
 	const prefix = DRY_RUN ? "[DRY-RUN] " : ""
 	console.log(`${prefix}opencode-plugin-opencoder: Installing agents...`)
 
@@ -131,7 +132,7 @@ function main() {
 				console.log(`${prefix}Would install: ${file} -> ${targetPath}`)
 			} else {
 				verbose(`  Copying file...`)
-				copyFileSync(sourcePath, targetPath)
+				await retryOnTransientError(() => copyFileSync(sourcePath, targetPath))
 
 				// Verify the copy succeeded by comparing file sizes
 				const sourceSize = statSync(sourcePath).size
@@ -195,4 +196,7 @@ function main() {
 	}
 }
 
-main()
+main().catch((err) => {
+	console.error("opencode-plugin-opencoder: Unexpected error:", err.message)
+	process.exit(1)
+})

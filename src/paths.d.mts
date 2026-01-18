@@ -35,6 +35,35 @@ export function getErrorMessage(
 	targetPath: string,
 ): string
 
+/** Error codes that indicate transient errors that may succeed on retry */
+export declare const TRANSIENT_ERROR_CODES: string[]
+
+/**
+ * Checks if an error is a transient error that may succeed on retry.
+ */
+export function isTransientError(error: Error & { code?: string }): boolean
+
+/**
+ * Options for retryOnTransientError function.
+ */
+export interface RetryOptions {
+	/** Number of retry attempts (default: 3) */
+	retries?: number
+	/** Delay between retries in milliseconds (default: 100) */
+	delayMs?: number
+}
+
+/**
+ * Retries a function on transient filesystem errors.
+ *
+ * If the function throws a transient error (EAGAIN, EBUSY), it will be retried
+ * up to the specified number of times with a delay between attempts.
+ */
+export function retryOnTransientError<T>(
+	fn: () => T | Promise<T>,
+	options?: RetryOptions,
+): Promise<T>
+
 /**
  * Result of parsing YAML frontmatter from markdown content.
  */

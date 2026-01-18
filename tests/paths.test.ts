@@ -7,10 +7,13 @@ import {
 	getAgentsSourceDir,
 	getErrorMessage,
 	getPackageRoot,
+	isTransientError,
 	MIN_CONTENT_LENGTH,
 	parseFrontmatter,
 	REQUIRED_FRONTMATTER_FIELDS,
 	REQUIRED_KEYWORDS,
+	retryOnTransientError,
+	TRANSIENT_ERROR_CODES,
 	validateAgentContent,
 } from "../src/paths.mjs"
 
@@ -189,6 +192,18 @@ describe("paths.mjs exports", () => {
 			const result = getErrorMessage(error, "file.md", deepPath)
 			expect(result).toBe("Permission denied. Check write permissions for /very/deep/nested/path")
 		})
+
+		it("should return resource temporarily unavailable message for EAGAIN error", () => {
+			const error = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+			const result = getErrorMessage(error, testFile, testTargetPath)
+			expect(result).toBe("Resource temporarily unavailable. Try again")
+		})
+
+		it("should return file busy message for EBUSY error", () => {
+			const error = Object.assign(new Error("EBUSY"), { code: "EBUSY" })
+			const result = getErrorMessage(error, testFile, testTargetPath)
+			expect(result).toBe("File is busy or locked. Try again later")
+		})
 	})
 
 	describe("constants", () => {
@@ -207,6 +222,174 @@ describe("paths.mjs exports", () => {
 			expect(Array.isArray(REQUIRED_FRONTMATTER_FIELDS)).toBe(true)
 			expect(REQUIRED_FRONTMATTER_FIELDS).toContain("version")
 			expect(REQUIRED_FRONTMATTER_FIELDS).toContain("requires")
+		})
+
+		it("should export TRANSIENT_ERROR_CODES as an array", () => {
+			expect(Array.isArray(TRANSIENT_ERROR_CODES)).toBe(true)
+			expect(TRANSIENT_ERROR_CODES).toContain("EAGAIN")
+			expect(TRANSIENT_ERROR_CODES).toContain("EBUSY")
+		})
+	})
+
+	describe("isTransientError", () => {
+		it("should return true for EAGAIN error", () => {
+			const error = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+			expect(isTransientError(error)).toBe(true)
+		})
+
+		it("should return true for EBUSY error", () => {
+			const error = Object.assign(new Error("EBUSY"), { code: "EBUSY" })
+			expect(isTransientError(error)).toBe(true)
+		})
+
+		it("should return false for non-transient errors", () => {
+			const error = Object.assign(new Error("ENOENT"), { code: "ENOENT" })
+			expect(isTransientError(error)).toBe(false)
+		})
+
+		it("should return false for errors without code", () => {
+			const error = new Error("Generic error")
+			expect(isTransientError(error)).toBe(false)
+		})
+
+		it("should return false for EACCES error", () => {
+			const error = Object.assign(new Error("EACCES"), { code: "EACCES" })
+			expect(isTransientError(error)).toBe(false)
+		})
+	})
+
+	describe("retryOnTransientError", () => {
+		it("should return result on success without retrying", async () => {
+			let callCount = 0
+			const result = await retryOnTransientError(() => {
+				callCount++
+				return "success"
+			})
+			expect(result).toBe("success")
+			expect(callCount).toBe(1)
+		})
+
+		it("should retry on EAGAIN and eventually succeed", async () => {
+			let callCount = 0
+			const result = await retryOnTransientError(() => {
+				callCount++
+				if (callCount < 3) {
+					const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+					throw err
+				}
+				return "success after retries"
+			})
+			expect(result).toBe("success after retries")
+			expect(callCount).toBe(3)
+		})
+
+		it("should retry on EBUSY and eventually succeed", async () => {
+			let callCount = 0
+			const result = await retryOnTransientError(() => {
+				callCount++
+				if (callCount < 2) {
+					const err = Object.assign(new Error("EBUSY"), { code: "EBUSY" })
+					throw err
+				}
+				return "success"
+			})
+			expect(result).toBe("success")
+			expect(callCount).toBe(2)
+		})
+
+		it("should throw immediately on non-transient errors", async () => {
+			let callCount = 0
+			await expect(
+				retryOnTransientError(() => {
+					callCount++
+					const err = Object.assign(new Error("ENOENT"), { code: "ENOENT" })
+					throw err
+				}),
+			).rejects.toThrow("ENOENT")
+			expect(callCount).toBe(1)
+		})
+
+		it("should throw after max retries exceeded", async () => {
+			let callCount = 0
+			await expect(
+				retryOnTransientError(
+					() => {
+						callCount++
+						const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+						throw err
+					},
+					{ retries: 2 },
+				),
+			).rejects.toThrow("EAGAIN")
+			expect(callCount).toBe(3) // Initial + 2 retries
+		})
+
+		it("should respect custom retry count option", async () => {
+			let callCount = 0
+			await expect(
+				retryOnTransientError(
+					() => {
+						callCount++
+						const err = Object.assign(new Error("EBUSY"), { code: "EBUSY" })
+						throw err
+					},
+					{ retries: 5 },
+				),
+			).rejects.toThrow("EBUSY")
+			expect(callCount).toBe(6) // Initial + 5 retries
+		})
+
+		it("should work with async functions", async () => {
+			let callCount = 0
+			const result = await retryOnTransientError(async () => {
+				callCount++
+				if (callCount < 2) {
+					const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+					throw err
+				}
+				return "async success"
+			})
+			expect(result).toBe("async success")
+			expect(callCount).toBe(2)
+		})
+
+		it("should use default delay of 100ms", async () => {
+			let callCount = 0
+			const start = Date.now()
+			await retryOnTransientError(
+				() => {
+					callCount++
+					if (callCount < 3) {
+						const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+						throw err
+					}
+					return "success"
+				},
+				{ retries: 3 },
+			)
+			const elapsed = Date.now() - start
+			// Should have at least 2 delays of ~100ms each
+			expect(elapsed).toBeGreaterThanOrEqual(150)
+		})
+
+		it("should respect custom delay option", async () => {
+			let callCount = 0
+			const start = Date.now()
+			await retryOnTransientError(
+				() => {
+					callCount++
+					if (callCount < 2) {
+						const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+						throw err
+					}
+					return "success"
+				},
+				{ delayMs: 50 },
+			)
+			const elapsed = Date.now() - start
+			// Should have 1 delay of ~50ms
+			expect(elapsed).toBeGreaterThanOrEqual(40)
+			expect(elapsed).toBeLessThan(150)
 		})
 	})
 
