@@ -69,6 +69,9 @@ const verbose = logger.verbose
  *
  * @param {string} filePath - Path to the agent file to validate
  * @returns {{ valid: boolean, error?: string }} Validation result with optional error message
+ * @throws {Error} If the file does not exist (ENOENT)
+ * @throws {Error} If permission is denied reading the file (EACCES)
+ * @throws {Error} If the file is a directory (EISDIR)
  *
  * @example
  * // Validate an agent file
