@@ -350,6 +350,46 @@ Create a smaller, more focused plan that unblocks forward progress.
 
 **On Critical status:** Immediately switch to recovery mode with explicit blocker context to planner.
 
+## Category Diversity Hints
+
+Track which improvement categories were completed in recent cycles to encourage diverse improvements.
+
+### Categories
+
+`bugfix` | `test` | `docs` | `refactor` | `perf` | `security` | `dx`
+
+### Tracking
+
+After each task completes, mentally note its category based on the work done:
+- Fixed a bug → `bugfix`
+- Added/improved tests → `test`
+- Updated documentation → `docs`
+- Restructured code → `refactor`
+- Improved speed/efficiency → `perf`
+- Added validation/auth → `security`
+- Improved errors/logging → `dx`
+
+### When to Hint
+
+**Add a diversity hint to the planner invocation when:**
+- 2+ consecutive cycles focused on the same category
+
+**Hint format:**
+```
+@opencoder-planner Analyze the codebase. Recent focus: [category], [category], [category]. Consider other areas.
+```
+
+**Example:**
+```
+@opencoder-planner Analyze the codebase and create a development plan. Recent focus: docs, docs, test. Consider other areas.
+```
+
+### Rules
+
+- Only add the hint if 2+ consecutive cycles had the same dominant category
+- Don't add hints if categories have been diverse
+- The planner will adjust priorities based on the hint
+
 ## Git Operations
 
 ### After Each Task Completes

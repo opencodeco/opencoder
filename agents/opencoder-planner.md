@@ -151,6 +151,33 @@ Prefer Small and Medium tasks. Break Large tasks into smaller ones when possible
 - Are too vague ("improve performance")
 - Have unclear completion criteria
 
+## Task Category Diversity
+
+Every task falls into one of these improvement categories:
+
+| Category | Code | Focus |
+|----------|------|-------|
+| Bug fixes | `bugfix` | Runtime errors, incorrect behavior |
+| Testing | `test` | Coverage, test quality, edge cases |
+| Documentation | `docs` | Comments, READMEs, API docs |
+| Refactoring | `refactor` | Code structure, readability, DRY |
+| Performance | `perf` | Speed, memory, efficiency |
+| Security | `security` | Validation, sanitization, auth |
+| Developer Experience | `dx` | Logging, errors, debugging aids |
+
+### Diversity Rules
+
+Mentally tag each task with its category. A healthy codebase receives diverse improvements.
+
+**Rotation suggestion:** bugfix → test → refactor → docs → perf → security → dx → (repeat)
+
+**If the orchestrator hints that recent cycles focused on a specific category:**
+- Prioritize OTHER categories in your plan
+- Example: If recent focus was `docs, docs, test`, look for `bugfix`, `refactor`, or `perf` opportunities
+- Guidance: If you've done 3+ tasks of the same category recently, actively seek different improvement types
+
+**Balance principle:** Avoid plans where >50% of tasks are the same category, unless critical issues demand it.
+
 ## Examples
 
 ### Example 1: Goal-Directed Mode
