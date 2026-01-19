@@ -599,6 +599,33 @@ This is a test agent that handles various tasks for you.
 			const error = Object.assign(new Error("EACCES"), { code: "EACCES" })
 			expect(isTransientError(error)).toBe(false)
 		})
+
+		it("should return false for null error", () => {
+			expect(isTransientError(null as unknown as Error)).toBe(false)
+		})
+
+		it("should return false for undefined error", () => {
+			expect(isTransientError(undefined as unknown as Error)).toBe(false)
+		})
+
+		it("should return false when error.code is undefined", () => {
+			const error = new Error("No code property")
+			expect(isTransientError(error)).toBe(false)
+		})
+
+		it("should return false when error.code is null", () => {
+			const error = Object.assign(new Error("Null code"), { code: null })
+			expect(isTransientError(error as unknown as Error & { code?: string })).toBe(false)
+		})
+
+		it("should return false when error.code is a number", () => {
+			const error = Object.assign(new Error("Number code"), { code: 123 })
+			expect(isTransientError(error as unknown as Error & { code?: string })).toBe(false)
+		})
+
+		it("should return false when error is an empty object", () => {
+			expect(isTransientError({} as unknown as Error)).toBe(false)
+		})
 	})
 
 	describe("retryOnTransientError", () => {

@@ -179,9 +179,12 @@ export const TRANSIENT_ERROR_CODES = ["EAGAIN", "EBUSY"]
  * Checks if an error is a transient error that may succeed on retry.
  *
  * @param {Error & {code?: string}} error - The error to check
- * @returns {boolean} True if the error is transient
+ * @returns {boolean} True if the error is transient, false for invalid input
  */
 export function isTransientError(error) {
+	if (!error || typeof error.code !== "string") {
+		return false
+	}
 	return TRANSIENT_ERROR_CODES.includes(error.code)
 }
 
