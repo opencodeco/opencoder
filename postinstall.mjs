@@ -190,6 +190,17 @@ async function main() {
 		verbose(`  Target path: ${targetPath}`)
 
 		try {
+			// Check if target file exists and has different content (stale)
+			if (existsSync(targetPath)) {
+				const sourceContent = readFileSync(sourcePath, "utf-8")
+				const targetContent = readFileSync(targetPath, "utf-8")
+				if (sourceContent !== targetContent) {
+					verbose(`Overwriting existing file: ${file} (content differs)`)
+				} else {
+					verbose(`Target file unchanged: ${file}`)
+				}
+			}
+
 			if (DRY_RUN) {
 				// In dry-run mode, validate source file but don't copy
 				verbose(`  Validating source file (dry-run mode)...`)

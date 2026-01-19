@@ -2029,6 +2029,162 @@ The agent handles various tasks and operations in the system.
 		})
 	})
 
+	describe("stale file detection", () => {
+		it("should log verbose message when overwriting existing file with different content", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+
+			// Ensure target directory exists
+			mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
+
+			// Create stale (different) content in target
+			writeFileSync(
+				join(AGENTS_TARGET_DIR, "opencoder.md"),
+				"# Old stale content\nThis is different from the source",
+			)
+
+			const proc = Bun.spawn(["node", "postinstall.mjs", "--dry-run", "--verbose"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+			// Should contain the stale file detection message
+			expect(stdout).toContain(
+				"[VERBOSE] Overwriting existing file: opencoder.md (content differs)",
+			)
+
+			// Clean up
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+		})
+
+		it("should log verbose message when target file has unchanged content", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+
+			// Ensure target directory exists
+			mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
+
+			// Copy the actual source content to target (identical content)
+			const sourceContent = readFileSync(join(process.cwd(), "agents", "opencoder.md"), "utf-8")
+			writeFileSync(join(AGENTS_TARGET_DIR, "opencoder.md"), sourceContent)
+
+			const proc = Bun.spawn(["node", "postinstall.mjs", "--dry-run", "--verbose"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+			// Should contain the unchanged message
+			expect(stdout).toContain("[VERBOSE] Target file unchanged: opencoder.md")
+			// Should NOT contain the overwriting message for this file
+			expect(stdout).not.toContain("Overwriting existing file: opencoder.md")
+
+			// Clean up
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+		})
+
+		it("should not log stale file message without --verbose flag", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+
+			// Ensure target directory exists
+			mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
+
+			// Create stale content in target
+			writeFileSync(
+				join(AGENTS_TARGET_DIR, "opencoder.md"),
+				"# Old stale content\nThis is different from the source",
+			)
+
+			const proc = Bun.spawn(["node", "postinstall.mjs", "--dry-run"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+			// Should NOT contain verbose markers or stale file message
+			expect(stdout).not.toContain("[VERBOSE]")
+			expect(stdout).not.toContain("Overwriting existing file")
+			expect(stdout).not.toContain("content differs")
+
+			// Clean up
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+		})
+
+		it("should detect stale files during actual install (not dry-run)", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+
+			// Ensure target directory exists
+			mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
+
+			// Create stale content in target for all files
+			for (const file of agentFiles) {
+				writeFileSync(
+					join(AGENTS_TARGET_DIR, file),
+					`# Old stale content for ${file}\nThis is different`,
+				)
+			}
+
+			const proc = Bun.spawn(["node", "postinstall.mjs", "--verbose"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+			// Should detect stale files for all three agents
+			expect(stdout).toContain(
+				"[VERBOSE] Overwriting existing file: opencoder.md (content differs)",
+			)
+			expect(stdout).toContain(
+				"[VERBOSE] Overwriting existing file: opencoder-planner.md (content differs)",
+			)
+			expect(stdout).toContain(
+				"[VERBOSE] Overwriting existing file: opencoder-builder.md (content differs)",
+			)
+
+			// Clean up
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+		})
+	})
+
 	describe("shipped agent files validation", () => {
 		it("should validate all shipped agent files pass content validation", async () => {
 			const { AGENT_NAMES, validateAgentContent } = await import("../src/paths.mjs")
