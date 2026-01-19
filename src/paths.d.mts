@@ -31,8 +31,9 @@ export declare const OPENCODE_VERSION: string
 /**
  * List of expected agent names (without .md extension).
  * This is the single source of truth for agent filenames.
+ * Frozen to prevent accidental mutation.
  */
-export declare const AGENT_NAMES: string[]
+export declare const AGENT_NAMES: readonly ["opencoder", "opencoder-planner", "opencoder-builder"]
 
 /** Minimum character count for valid agent files */
 export declare const MIN_CONTENT_LENGTH: number

@@ -39,7 +39,7 @@ describe("index.ts exports", () => {
 		const files = readdirSync(agentsDir)
 		const mdFiles = files.filter((f) => f.endsWith(".md"))
 		const agentNamesFromFiles = mdFiles.map((f) => f.replace(/\.md$/, "")).sort()
-		const agentNamesFromExport = [...agents].sort()
+		const agentNamesFromExport = ([...agents] as string[]).sort()
 
 		expect(agentNamesFromExport).toEqual(agentNamesFromFiles)
 	})

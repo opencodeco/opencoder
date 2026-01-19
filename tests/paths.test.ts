@@ -397,7 +397,7 @@ describe("paths.mjs exports", () => {
 		it("should prevent push to AGENT_NAMES", () => {
 			const originalLength = AGENT_NAMES.length
 			expect(() => {
-				;(AGENT_NAMES as string[]).push("new-agent")
+				;(AGENT_NAMES as unknown as string[]).push("new-agent")
 			}).toThrow()
 			expect(AGENT_NAMES.length).toBe(originalLength)
 		})
@@ -405,7 +405,7 @@ describe("paths.mjs exports", () => {
 		it("should prevent modification of AGENT_NAMES elements", () => {
 			const originalFirst = AGENT_NAMES[0]
 			expect(() => {
-				;(AGENT_NAMES as string[])[0] = "modified"
+				;(AGENT_NAMES as unknown as string[])[0] = "modified"
 			}).toThrow()
 			expect(AGENT_NAMES[0]).toBe(originalFirst)
 		})
@@ -413,7 +413,7 @@ describe("paths.mjs exports", () => {
 		it("should prevent pop from AGENT_NAMES", () => {
 			const originalLength = AGENT_NAMES.length
 			expect(() => {
-				;(AGENT_NAMES as string[]).pop()
+				;(AGENT_NAMES as unknown as string[]).pop()
 			}).toThrow()
 			expect(AGENT_NAMES.length).toBe(originalLength)
 		})
