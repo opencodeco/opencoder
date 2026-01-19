@@ -12,12 +12,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preuninstall script to clean up agents when plugin is removed
 - CI test job with bun test integration
 - Preuninstall verification in CI workflow
+- Comprehensive input validation for all public API functions
+- Retry logic with exponential backoff for transient filesystem errors
+- Version compatibility checking for agent installation
+- `--dry-run`, `--verbose`, and `--help` CLI flags for install scripts
+- Stale file detection with verbose logging
+- TypeScript type declarations (`paths.d.mts`, `semver.d.mts`)
+- Shared utility modules (`paths.mjs`, `semver.mjs`)
+- YAML frontmatter validation for agent files
+- Debug logging support via `OPENCODER_DEBUG` environment variable
+- Comprehensive error messages with actionable suggestions
 
 ### Changed
 - Refactored index.ts to import metadata from package.json (single source of truth)
 - Expanded biome config to include tests and scripts
 - Updated CI to use `--ignore-scripts` during install for cleaner testing
 - Improved agent instructions for clarity and better results
+- `AGENT_NAMES` and `REQUIRED_KEYWORDS` are now frozen readonly arrays
+- Error messages now include recovery command suggestions
 
 ## [0.1.0] - 2026-01-18
 
