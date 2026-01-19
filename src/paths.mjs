@@ -462,10 +462,11 @@ export function validateAgentContent(content) {
  * - `--dry-run`: Simulate the operation without making changes
  * - `--verbose`: Enable verbose logging output
  * - `--quiet`: Suppress non-error output (for CI environments)
+ * - `--force`: Overwrite existing files without prompting
  * - `--help`: Display help information
  *
  * @param {string[]} argv - The command line arguments array (typically process.argv)
- * @returns {{ dryRun: boolean, verbose: boolean, quiet: boolean, help: boolean }} Parsed flags
+ * @returns {{ dryRun: boolean, verbose: boolean, quiet: boolean, force: boolean, help: boolean }} Parsed flags
  *
  * @example
  * // Parse process.argv
@@ -478,7 +479,7 @@ export function validateAgentContent(content) {
  * @example
  * // Parse custom arguments
  * const flags = parseCliFlags(["node", "script.js", "--verbose", "--dry-run"])
- * // flags = { dryRun: true, verbose: true, quiet: false, help: false }
+ * // flags = { dryRun: true, verbose: true, quiet: false, force: false, help: false }
  * @throws {TypeError} If argv is not an array
  */
 export function parseCliFlags(argv) {
@@ -491,6 +492,7 @@ export function parseCliFlags(argv) {
 		dryRun: argv.includes("--dry-run"),
 		verbose: argv.includes("--verbose"),
 		quiet: argv.includes("--quiet"),
+		force: argv.includes("--force"),
 		help: argv.includes("--help"),
 	}
 }

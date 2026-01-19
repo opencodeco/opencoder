@@ -39,13 +39,15 @@ Options:
   --dry-run   Simulate removal without deleting files
   --verbose   Enable verbose output for debugging
   --quiet     Suppress non-error output (for CI environments)
+  --force     Force removal without prompting
   --help      Show this help message and exit
 
 Examples:
   node preuninstall.mjs              # Remove agents
   node preuninstall.mjs --dry-run    # Preview what would be removed
   node preuninstall.mjs --verbose    # Remove with detailed logging
-  node preuninstall.mjs --quiet      # Remove silently (errors only)`)
+  node preuninstall.mjs --quiet      # Remove silently (errors only)
+  node preuninstall.mjs --force      # Force remove agents`)
 	process.exit(0)
 }
 

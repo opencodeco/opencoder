@@ -313,6 +313,8 @@ export interface CliFlags {
 	verbose: boolean
 	/** Suppress non-error output (for CI environments) */
 	quiet: boolean
+	/** Overwrite existing files without prompting */
+	force: boolean
 	/** Display help information */
 	help: boolean
 }
@@ -324,6 +326,7 @@ export interface CliFlags {
  * - `--dry-run`: Simulate the operation without making changes
  * - `--verbose`: Enable verbose logging output
  * - `--quiet`: Suppress non-error output (for CI environments)
+ * - `--force`: Overwrite existing files without prompting
  * - `--help`: Display help information
  *
  * @param argv - The command line arguments array (typically process.argv)
@@ -340,7 +343,7 @@ export interface CliFlags {
  * @example
  * // Parse custom arguments
  * const flags = parseCliFlags(["node", "script.js", "--verbose", "--dry-run"])
- * // flags = { dryRun: true, verbose: true, quiet: false, help: false }
+ * // flags = { dryRun: true, verbose: true, quiet: false, force: false, help: false }
  */
 export function parseCliFlags(argv: string[]): CliFlags
 

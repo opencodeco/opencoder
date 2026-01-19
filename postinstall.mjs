@@ -40,13 +40,15 @@ Options:
   --dry-run   Simulate installation without copying files
   --verbose   Enable verbose output for debugging
   --quiet     Suppress non-error output (for CI environments)
+  --force     Overwrite existing files without prompting
   --help      Show this help message and exit
 
 Examples:
   node postinstall.mjs              # Install agents
   node postinstall.mjs --dry-run    # Preview what would be installed
   node postinstall.mjs --verbose    # Install with detailed logging
-  node postinstall.mjs --quiet      # Install silently (errors only)`)
+  node postinstall.mjs --quiet      # Install silently (errors only)
+  node postinstall.mjs --force      # Force overwrite existing agents`)
 	process.exit(0)
 }
 

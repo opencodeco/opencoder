@@ -2240,12 +2240,24 @@ This is a test agent that handles various tasks.
 	describe("parseCliFlags", () => {
 		it("should return all false flags for empty argv", () => {
 			const result = parseCliFlags([])
-			expect(result).toEqual({ dryRun: false, verbose: false, quiet: false, help: false })
+			expect(result).toEqual({
+				dryRun: false,
+				verbose: false,
+				quiet: false,
+				force: false,
+				help: false,
+			})
 		})
 
 		it("should return all false flags for argv without flags", () => {
 			const result = parseCliFlags(["node", "script.js"])
-			expect(result).toEqual({ dryRun: false, verbose: false, quiet: false, help: false })
+			expect(result).toEqual({
+				dryRun: false,
+				verbose: false,
+				quiet: false,
+				force: false,
+				help: false,
+			})
 		})
 
 		it("should detect --dry-run flag", () => {
@@ -2253,6 +2265,7 @@ This is a test agent that handles various tasks.
 			expect(result.dryRun).toBe(true)
 			expect(result.verbose).toBe(false)
 			expect(result.quiet).toBe(false)
+			expect(result.force).toBe(false)
 			expect(result.help).toBe(false)
 		})
 
@@ -2261,6 +2274,7 @@ This is a test agent that handles various tasks.
 			expect(result.dryRun).toBe(false)
 			expect(result.verbose).toBe(true)
 			expect(result.quiet).toBe(false)
+			expect(result.force).toBe(false)
 			expect(result.help).toBe(false)
 		})
 
@@ -2269,6 +2283,16 @@ This is a test agent that handles various tasks.
 			expect(result.dryRun).toBe(false)
 			expect(result.verbose).toBe(false)
 			expect(result.quiet).toBe(true)
+			expect(result.force).toBe(false)
+			expect(result.help).toBe(false)
+		})
+
+		it("should detect --force flag", () => {
+			const result = parseCliFlags(["node", "script.js", "--force"])
+			expect(result.dryRun).toBe(false)
+			expect(result.verbose).toBe(false)
+			expect(result.quiet).toBe(false)
+			expect(result.force).toBe(true)
 			expect(result.help).toBe(false)
 		})
 
@@ -2277,6 +2301,7 @@ This is a test agent that handles various tasks.
 			expect(result.dryRun).toBe(false)
 			expect(result.verbose).toBe(false)
 			expect(result.quiet).toBe(false)
+			expect(result.force).toBe(false)
 			expect(result.help).toBe(true)
 		})
 
@@ -2285,6 +2310,16 @@ This is a test agent that handles various tasks.
 			expect(result.dryRun).toBe(true)
 			expect(result.verbose).toBe(true)
 			expect(result.quiet).toBe(false)
+			expect(result.force).toBe(false)
+			expect(result.help).toBe(false)
+		})
+
+		it("should detect --force with other flags", () => {
+			const result = parseCliFlags(["node", "script.js", "--force", "--verbose"])
+			expect(result.dryRun).toBe(false)
+			expect(result.verbose).toBe(true)
+			expect(result.quiet).toBe(false)
+			expect(result.force).toBe(true)
 			expect(result.help).toBe(false)
 		})
 
@@ -2295,14 +2330,21 @@ This is a test agent that handles various tasks.
 				"--dry-run",
 				"--verbose",
 				"--quiet",
+				"--force",
 				"--help",
 			])
-			expect(result).toEqual({ dryRun: true, verbose: true, quiet: true, help: true })
+			expect(result).toEqual({ dryRun: true, verbose: true, quiet: true, force: true, help: true })
 		})
 
 		it("should ignore unknown flags", () => {
 			const result = parseCliFlags(["node", "script.js", "--unknown", "--other"])
-			expect(result).toEqual({ dryRun: false, verbose: false, quiet: false, help: false })
+			expect(result).toEqual({
+				dryRun: false,
+				verbose: false,
+				quiet: false,
+				force: false,
+				help: false,
+			})
 		})
 
 		it("should handle flags in any position", () => {
@@ -2313,8 +2355,9 @@ This is a test agent that handles various tasks.
 				"script.js",
 				"--help",
 				"--quiet",
+				"--force",
 			])
-			expect(result).toEqual({ dryRun: true, verbose: true, quiet: true, help: true })
+			expect(result).toEqual({ dryRun: true, verbose: true, quiet: true, force: true, help: true })
 		})
 
 		it("should not match partial flag names", () => {
@@ -2324,10 +2367,12 @@ This is a test agent that handles various tasks.
 				"--dry-run-test",
 				"--verbosity",
 				"--quietly",
+				"--forceful",
 			])
 			expect(result.dryRun).toBe(false)
 			expect(result.verbose).toBe(false)
 			expect(result.quiet).toBe(false)
+			expect(result.force).toBe(false)
 		})
 
 		it("should throw TypeError for null input", () => {
