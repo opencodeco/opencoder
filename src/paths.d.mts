@@ -57,10 +57,54 @@ export function getAgentsSourceDir(packageRoot: string): string
 export declare const AGENTS_TARGET_DIR: string
 
 /**
+ * Node.js filesystem error codes handled by `getErrorMessage`.
+ *
+ * These are the specific error codes that have custom user-friendly messages:
+ * - `EACCES` - Permission denied
+ * - `EPERM` - Operation not permitted (file may be in use or locked)
+ * - `ENOSPC` - No space left on device
+ * - `ENOENT` - No such file or directory
+ * - `EROFS` - Read-only file system
+ * - `EMFILE` - Too many open files (per-process limit)
+ * - `ENFILE` - Too many open files (system-wide limit)
+ * - `EEXIST` - File already exists
+ * - `EISDIR` - Is a directory (expected a file)
+ * - `EAGAIN` - Resource temporarily unavailable (transient)
+ * - `EBUSY` - Resource busy or locked (transient)
+ *
+ * Any other error code falls back to the error's message property.
+ */
+export type HandledErrorCode =
+	| "EACCES"
+	| "EPERM"
+	| "ENOSPC"
+	| "ENOENT"
+	| "EROFS"
+	| "EMFILE"
+	| "ENFILE"
+	| "EEXIST"
+	| "EISDIR"
+	| "EAGAIN"
+	| "EBUSY"
+
+/**
  * Returns a user-friendly error message based on the error code.
  *
  * Translates Node.js filesystem error codes into human-readable messages
  * that help users understand and resolve installation issues.
+ *
+ * Handled error codes (see {@link HandledErrorCode}):
+ * - `EACCES` - "Permission denied. Check write permissions for {directory}"
+ * - `EPERM` - "Operation not permitted. The file may be in use or locked"
+ * - `ENOSPC` - "Disk full. Free up space and try again"
+ * - `ENOENT` - "Source file not found: {file}"
+ * - `EROFS` - "Read-only file system. Cannot write to target directory"
+ * - `EMFILE`/`ENFILE` - "Too many open files. Close some applications and try again"
+ * - `EEXIST` - "Target already exists: {targetPath}"
+ * - `EISDIR` - "Expected a file but found a directory: {targetPath}"
+ * - `EAGAIN` - "Resource temporarily unavailable. Try again"
+ * - `EBUSY` - "File is busy or locked. Try again later"
+ * - (other) - Falls back to error.message or "Unknown error"
  *
  * @param error - The error object from a failed fs operation
  * @param file - The filename being processed
@@ -80,7 +124,7 @@ export declare const AGENTS_TARGET_DIR: string
  * // Returns: "Source file not found: missing.md"
  */
 export function getErrorMessage(
-	error: Error & { code?: string },
+	error: Error & { code?: HandledErrorCode | string },
 	file: string,
 	targetPath: string,
 ): string
