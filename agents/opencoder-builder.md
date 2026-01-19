@@ -117,6 +117,58 @@ bunx biome check src/ || npm run lint || ruff check .
 - [ ] Linter passes (or only pre-existing violations remain)
 - [ ] No console errors or warnings introduced
 
+## Verification Depth by Complexity
+
+Not all tasks need the same verification rigor. Match your verification depth to task complexity.
+
+### Verification Matrix
+
+| Task Size | Type Check | Tests | Lint | Manual Check |
+|-----------|------------|-------|------|--------------|
+| Small | ✓ Quick | Affected only | Auto-fix only | Not required |
+| Medium | ✓ Full | Full suite | Full check | Spot check |
+| Large | ✓ Full | Full suite + new | Full check | Smoke test |
+
+### Commands by Level
+
+**Small task verification:**
+
+```bash
+bun tsc --noEmit                    # Quick type check
+bun test path/to/affected.test.ts   # Only affected tests
+bunx biome check --write src/       # Auto-fix lint only
+```
+
+**Medium task verification:**
+
+```bash
+bun tsc --noEmit      # Full type check
+bun test              # Full test suite
+bunx biome check src/ # Full lint (no auto-fix, review issues)
+```
+
+**Large task verification:**
+
+```bash
+bun tsc --noEmit       # Full type check
+bun test               # Full test suite
+bunx biome check src/  # Full lint
+# Manual: Run the feature end-to-end once
+```
+
+### Timing Expectations
+
+| Task Size | Max Verification Time |
+|-----------|----------------------|
+| Small | < 30 seconds |
+| Medium | < 2 minutes |
+| Large | < 5 minutes |
+
+If verification exceeds these times, investigate why. Common causes:
+- Test suite has slow tests (consider `--bail` flag)
+- Type checking entire monorepo (check tsconfig scope)
+- Linting files outside your changes (narrow the path)
+
 ### Phase 5: Report
 
 Return a **compact completion report** with a continuation signal:
