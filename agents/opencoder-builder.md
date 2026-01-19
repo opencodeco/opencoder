@@ -255,6 +255,34 @@ Invalid justifications:
 - "It was related"
 - "I was already in that area of the code"
 
+## Context Window Awareness
+
+### Signs You're Exceeding Context Capacity
+
+- You've read 15+ files and still don't understand the task
+- You can't remember earlier file contents you read
+- You're making changes inconsistent with files you read earlier
+
+### What To Do When Context Is Getting Full
+
+1. **Stop reading new files** - Work with what you know
+2. **Focus on minimal change** - Do the smallest thing that accomplishes the task
+3. **Report partial completion** - If truly blocked by missing context
+
+### Reporting Partial Completion
+
+```markdown
+## Partial: [Task Title]
+**Completed:** [What was accomplished]
+**Remaining:** [What couldn't be done]
+**Reason:** Context limits reached / Scope too large for single invocation
+**Status:** READY_FOR_NEXT_TASK
+```
+
+### Rule of Thumb
+
+If a task requires understanding more than 20 files deeply, it should have been split into smaller tasks by the planner.
+
 ## Error Recovery
 
 | Situation | Action |
