@@ -641,6 +641,166 @@ describe("paths.mjs exports", () => {
 			expect(elapsed).toBeLessThan(150)
 		})
 
+		describe("error recovery integration", () => {
+			it("should return immediately on first attempt success without any retries", async () => {
+				const attemptTimestamps: number[] = []
+				const start = Date.now()
+
+				const result = await retryOnTransientError(
+					() => {
+						attemptTimestamps.push(Date.now() - start)
+						return { data: "immediate success", timestamp: Date.now() }
+					},
+					{ retries: 5, initialDelayMs: 100 },
+				)
+
+				// Verify single attempt
+				expect(attemptTimestamps).toHaveLength(1)
+				// Verify result is returned correctly
+				expect(result.data).toBe("immediate success")
+				// Verify no delay was incurred (should be nearly instant)
+				expect(attemptTimestamps[0]).toBeLessThan(50)
+			})
+
+			it("should respect exact retry count: retries=1 means 2 total attempts", async () => {
+				const attempts: number[] = []
+
+				await expect(
+					retryOnTransientError(
+						() => {
+							attempts.push(attempts.length + 1)
+							throw Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+						},
+						{ retries: 1, initialDelayMs: 1 },
+					),
+				).rejects.toThrow("EAGAIN")
+
+				// retries=1 means: 1 initial attempt + 1 retry = 2 total
+				expect(attempts).toEqual([1, 2])
+			})
+
+			it("should respect exact retry count: retries=4 means 5 total attempts", async () => {
+				const attempts: number[] = []
+
+				await expect(
+					retryOnTransientError(
+						() => {
+							attempts.push(attempts.length + 1)
+							throw Object.assign(new Error("EBUSY"), { code: "EBUSY" })
+						},
+						{ retries: 4, initialDelayMs: 1 },
+					),
+				).rejects.toThrow("EBUSY")
+
+				// retries=4 means: 1 initial attempt + 4 retries = 5 total
+				expect(attempts).toEqual([1, 2, 3, 4, 5])
+			})
+
+			it("should throw non-transient error immediately without any retry attempts", async () => {
+				const errorCodes = ["ENOENT", "EACCES", "EPERM", "ENOSPC", "EROFS"]
+
+				for (const code of errorCodes) {
+					const attempts: number[] = []
+
+					await expect(
+						retryOnTransientError(
+							() => {
+								attempts.push(attempts.length + 1)
+								throw Object.assign(new Error(code), { code })
+							},
+							{ retries: 10, initialDelayMs: 1 },
+						),
+					).rejects.toThrow(code)
+
+					// Non-transient errors should fail immediately with only 1 attempt
+					expect(attempts).toEqual([1])
+				}
+			})
+
+			it("should return the exact result value after successful retry", async () => {
+				let attemptCount = 0
+				const expectedResult = {
+					nested: { value: 42, array: [1, 2, 3] },
+					status: "recovered",
+				}
+
+				const result = await retryOnTransientError(
+					() => {
+						attemptCount++
+						if (attemptCount < 3) {
+							throw Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+						}
+						return expectedResult
+					},
+					{ retries: 5, initialDelayMs: 1 },
+				)
+
+				// Verify the exact object is returned
+				expect(result).toEqual(expectedResult)
+				expect(result.nested.value).toBe(42)
+				expect(result.nested.array).toEqual([1, 2, 3])
+				expect(result.status).toBe("recovered")
+				// Verify it took exactly 3 attempts
+				expect(attemptCount).toBe(3)
+			})
+
+			it("should preserve error details when throwing after exhausting retries", async () => {
+				const customError = Object.assign(new Error("Resource busy: /tmp/file.lock"), {
+					code: "EBUSY",
+					path: "/tmp/file.lock",
+					syscall: "open",
+				})
+
+				try {
+					await retryOnTransientError(
+						() => {
+							throw customError
+						},
+						{ retries: 2, initialDelayMs: 1 },
+					)
+					expect.unreachable("Should have thrown")
+				} catch (err) {
+					// Verify the exact same error object is thrown
+					expect(err).toBe(customError)
+					expect((err as NodeJS.ErrnoException).code).toBe("EBUSY")
+					expect((err as NodeJS.ErrnoException).path).toBe("/tmp/file.lock")
+					expect((err as NodeJS.ErrnoException).syscall).toBe("open")
+				}
+			})
+
+			it("should track state correctly across retry attempts", async () => {
+				const stateLog: Array<{ attempt: number; timestamp: number }> = []
+				const start = Date.now()
+
+				const result = await retryOnTransientError(
+					() => {
+						const attempt = stateLog.length + 1
+						stateLog.push({ attempt, timestamp: Date.now() - start })
+
+						if (attempt < 4) {
+							throw Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+						}
+						return `success on attempt ${attempt}`
+					},
+					{ retries: 5, initialDelayMs: 10 },
+				)
+
+				// Verify correct number of attempts
+				expect(stateLog).toHaveLength(4)
+				expect(stateLog.map((s) => s.attempt)).toEqual([1, 2, 3, 4])
+
+				// Verify result reflects final successful attempt
+				expect(result).toBe("success on attempt 4")
+
+				// Verify delays occurred between attempts (exponential backoff)
+				// Attempt 1: ~0ms, Attempt 2: ~10ms, Attempt 3: ~30ms, Attempt 4: ~70ms
+				expect(stateLog[0]?.timestamp).toBeLessThan(10)
+				expect(stateLog[1]?.timestamp).toBeGreaterThanOrEqual(5)
+				expect(stateLog[2]?.timestamp).toBeGreaterThanOrEqual(20)
+				expect(stateLog[3]?.timestamp).toBeGreaterThanOrEqual(50)
+			})
+		})
+
 		describe("input validation", () => {
 			it("should throw TypeError when fn is null", async () => {
 				await expect(retryOnTransientError(null as unknown as () => void)).rejects.toThrow(
