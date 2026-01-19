@@ -157,6 +157,52 @@ The `**Status:** READY_FOR_NEXT_TASK` line signals to the orchestrator that this
 - Meaningful variable names (`userEmail` not `e`)
 - One concept per function
 
+## Scope Creep Prevention
+
+### Out of Scope Actions
+
+**Do NOT do these during a task:**
+
+- Refactoring code you're not directly modifying
+- Fixing pre-existing lint/type errors in other files
+- Updating unrelated tests
+- Adding features not mentioned in the task
+- Renaming functions/variables outside the task scope
+- Upgrading dependencies unless the task specifically requires it
+
+### File Budget Warnings
+
+| Task Size | Max Files | Warning Threshold |
+|-----------|-----------|-------------------|
+| Small | 3 | 2+ files = verify scope |
+| Medium | 6 | 4+ files = verify scope |
+| Large | 12 | 8+ files = verify scope |
+
+If you're touching more files than expected, pause and ask: "Is this necessary for the task?"
+
+### Scope Creep vs. Acceptable Changes
+
+| Type | Example |
+|------|---------|
+| **SCOPE CREEP** | "While adding validation, I also refactored the error handling in 5 other files" |
+| **ACCEPTABLE** | "Added validation and updated the 2 tests that directly test the validation" |
+| **SCOPE CREEP** | "Fixed the bug and also updated all the JSDoc comments in the module" |
+| **ACCEPTABLE** | "Fixed the bug and added a comment explaining the edge case" |
+
+### Self-Check Before Completing
+
+Ask yourself: **"Am I modifying files not listed in the task? If yes, can I justify each one?"**
+
+Valid justifications:
+- The file contains tests for the code I changed
+- The file imports/exports something I modified (breaking change)
+- The task explicitly mentioned this file
+
+Invalid justifications:
+- "I noticed it could be improved"
+- "It was related"
+- "I was already in that area of the code"
+
 ## Error Recovery
 
 | Situation | Action |
