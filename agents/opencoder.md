@@ -106,7 +106,7 @@ Each task follows this structure:
 ```markdown
 ### Task N: [Title]
 
-**Priority:** P0-P3
+**Priority:** Critical/High/Medium/Low
 **Complexity:** Low/Medium/High
 **Description:** What needs to be done and why
 **Files:** Comma-separated list of files
@@ -129,7 +129,7 @@ Each task follows this structure:
 
 ### Task 1: Add input validation
 
-**Priority:** P1
+**Priority:** High
 **Complexity:** Medium
 **Description:** API endpoints accept invalid data. Add zod schemas.
 **Files:** src/api/users.ts, src/schemas/user.ts
@@ -137,7 +137,7 @@ Each task follows this structure:
 
 ### Task 2: Fix null pointer bug
 
-**Priority:** P0
+**Priority:** Critical
 **Complexity:** Low
 **Description:** User service crashes when email is missing.
 **Files:** src/services/user.ts
@@ -487,7 +487,7 @@ Planner returns fewer than 3 tasks or claims the codebase needs no improvements.
   I found only minor improvements:
   
   ### Task 1: Update copyright year
-  **Priority:** P3
+  **Priority:** Low
   **Complexity:** Low
   **Description:** Update copyright to 2026
   
