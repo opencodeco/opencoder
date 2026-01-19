@@ -19,13 +19,43 @@ const PLUGIN_NAME = "opencoder"
  * These hooks provide optional logging points for plugin activity.
  * Set OPENCODER_DEBUG=1 environment variable to enable debug logging.
  *
- * @param ctx - Plugin context from OpenCode
- * @returns Hooks object with lifecycle callbacks
+ * @param ctx - Plugin context from OpenCode containing session information
+ * @returns Hooks object with lifecycle callbacks for `event`, `tool.execute.before`, and `tool.execute.after`
+ *
+ * @example
+ * // Enable debug logging by setting environment variable:
+ * // OPENCODER_DEBUG=1 opencode @opencoder
+ *
+ * @example
+ * // Debug output format for events:
+ * // [2026-01-19T12:00:00.000Z] [opencoder] Event received {
+ * //   "directory": "/home/user/project",
+ * //   "type": "session.created",
+ * //   "properties": ["sessionId", "timestamp"]
+ * // }
  */
 function createLifecycleHooks(ctx: PluginInput): Hooks {
 	const debug = process.env.OPENCODER_DEBUG === "1"
 
-	const log = (message: string, data?: Record<string, unknown>) => {
+	/**
+	 * Logs a debug message with context when OPENCODER_DEBUG=1 is set.
+	 *
+	 * Messages are formatted with ISO timestamp and plugin name prefix,
+	 * followed by the message and context data as pretty-printed JSON.
+	 *
+	 * @param message - The log message describing the event
+	 * @param data - Optional additional context to include in the log output
+	 * @returns void
+	 *
+	 * @example
+	 * // Output when debug is enabled:
+	 * // [2026-01-19T12:00:00.000Z] [opencoder] Tool executing {
+	 * //   "directory": "/home/user/project",
+	 * //   "tool": "bash",
+	 * //   "sessionID": "abc123"
+	 * // }
+	 */
+	const log = (message: string, data?: Record<string, unknown>): void => {
 		if (debug) {
 			const timestamp = new Date().toISOString()
 			const prefix = `[${timestamp}] [${PLUGIN_NAME}]`
