@@ -71,3 +71,10 @@ jobs:
           test ! -f ~/.config/opencode/agents/opencoder-planner.md
           test ! -f ~/.config/opencode/agents/opencoder-builder.md
           echo "All agents removed successfully"
+
+      - name: Test verbose output format
+        run: |
+          output=$(node postinstall.mjs --verbose --dry-run 2>&1)
+          echo "$output"
+          echo "$output" | grep -q "\[VERBOSE\]" || (echo "ERROR: Missing [VERBOSE] markers in output" && exit 1)
+          echo "Verbose output format verified"
