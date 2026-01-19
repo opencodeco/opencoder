@@ -95,6 +95,87 @@ For each task:
 
 Wait for the builder to confirm completion before proceeding to the next task.
 
+## Plan Parsing
+
+The planner returns tasks in a structured markdown format. Parse them reliably using these rules.
+
+### Expected Format
+
+Each task follows this structure:
+
+```markdown
+### Task N: [Title]
+
+**Priority:** P0-P3
+**Complexity:** Low/Medium/High
+**Description:** What needs to be done and why
+**Files:** Comma-separated list of files
+**Done when:** Acceptance criteria
+```
+
+### Extraction Rules
+
+1. **Find tasks** - Look for headings matching `### Task \d+: (.+)`
+2. **Extract number and title** - From the heading itself
+3. **Extract full block** - Everything from the heading until the next `### Task` or end of plan
+4. **Preserve order** - Execute tasks in numbered order (Task 1, Task 2, etc.)
+
+### Example
+
+**Planner output:**
+
+```markdown
+## Development Plan
+
+### Task 1: Add input validation
+
+**Priority:** P1
+**Complexity:** Medium
+**Description:** API endpoints accept invalid data. Add zod schemas.
+**Files:** src/api/users.ts, src/schemas/user.ts
+**Done when:** Invalid requests return 400 with error details
+
+### Task 2: Fix null pointer bug
+
+**Priority:** P0
+**Complexity:** Low
+**Description:** User service crashes when email is missing.
+**Files:** src/services/user.ts
+**Done when:** Missing email handled gracefully
+```
+
+**Extracted for builder invocation:**
+
+```
+Task 1: "Add input validation"
+→ @opencoder-builder Execute this task: Add input validation
+
+API endpoints accept invalid data. Add zod schemas.
+Files: src/api/users.ts, src/schemas/user.ts
+Done when: Invalid requests return 400 with error details
+
+Task 2: "Fix null pointer bug"
+→ @opencoder-builder Execute this task: Fix null pointer bug
+
+User service crashes when email is missing.
+Files: src/services/user.ts
+Done when: Missing email handled gracefully
+```
+
+### Passing to Builder
+
+Include the task title and all context fields:
+
+```
+@opencoder-builder Execute this task: [Title]
+
+[Description]
+Files: [Files]
+Done when: [Done when]
+```
+
+The builder needs the description, files, and acceptance criteria to complete the task correctly.
+
 ## Git Operations
 
 ### After Each Task Completes
