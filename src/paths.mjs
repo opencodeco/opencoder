@@ -36,8 +36,32 @@ export const OPENCODE_VERSION = "0.1.0"
 
 /**
  * List of expected agent names (without .md extension).
- * This is the single source of truth for agent filenames.
- * Frozen to prevent accidental mutation.
+ *
+ * This is the single source of truth for agent filenames used during
+ * installation and uninstallation. Each name maps directly to a `.md`
+ * file in the `agents/` directory.
+ *
+ * **Agent roles:**
+ * - `opencoder` - Main orchestrator that coordinates the Plan-Build-Commit loop
+ * - `opencoder-planner` - Analysis subagent that examines codebases and creates prioritized task lists
+ * - `opencoder-builder` - Execution subagent that implements individual tasks and verifies changes
+ *
+ * The array is frozen via `Object.freeze()` to prevent accidental mutation,
+ * ensuring consistency across the codebase.
+ *
+ * @example
+ * import { AGENT_NAMES } from "./paths.mjs"
+ *
+ * // Iterate over agent names to process files
+ * for (const name of AGENT_NAMES) {
+ *   const filename = `${name}.md`
+ *   console.log(`Processing ${filename}`)
+ * }
+ *
+ * @example
+ * // Check if a name is a valid agent
+ * const isValidAgent = AGENT_NAMES.includes("opencoder") // true
+ * const isInvalid = AGENT_NAMES.includes("unknown")      // false
  */
 export const AGENT_NAMES = Object.freeze(["opencoder", "opencoder-planner", "opencoder-builder"])
 
@@ -45,14 +69,36 @@ export const AGENT_NAMES = Object.freeze(["opencoder", "opencoder-planner", "ope
 export const MIN_CONTENT_LENGTH = 100
 
 /**
- * Keywords that should appear in valid agent files (case-insensitive).
+ * Keywords that must appear in valid agent files for content validation.
  *
- * These specific keywords were chosen because they indicate the file contains
- * agent-related content:
- * - "agent": Identifies the file as defining or describing an agent
- * - "task": Indicates the file contains task execution logic or instructions
+ * Used by {@link validateAgentContent} to verify that a file actually contains
+ * agent-related content rather than arbitrary text. The validation is
+ * case-insensitive, so "Agent", "TASK", or "task" all match.
  *
- * At least one of these keywords must be present for content validation to pass.
+ * **Keyword purposes:**
+ * - `"agent"` - Identifies the file as defining or describing an agent persona
+ * - `"task"` - Indicates the file contains task execution logic or instructions
+ *
+ * At least one of these keywords must be present for validation to pass.
+ * This acts as a sanity check to catch corrupted or incorrectly-named files.
+ *
+ * @example
+ * import { REQUIRED_KEYWORDS } from "./paths.mjs"
+ *
+ * // Manual keyword check (validateAgentContent does this internally)
+ * const content = "# My Agent\nThis agent handles tasks..."
+ * const lowerContent = content.toLowerCase()
+ * const hasKeyword = REQUIRED_KEYWORDS.some(kw => lowerContent.includes(kw))
+ * console.log(hasKeyword) // true (contains "agent" and "tasks")
+ *
+ * @example
+ * // Invalid content missing keywords
+ * const badContent = "# Random File\nThis is just some notes."
+ * const lowerBad = badContent.toLowerCase()
+ * const isValid = REQUIRED_KEYWORDS.some(kw => lowerBad.includes(kw))
+ * console.log(isValid) // false (no "agent" or "task")
+ *
+ * @see {@link validateAgentContent} - The function that uses these keywords
  */
 export const REQUIRED_KEYWORDS = ["agent", "task"]
 
