@@ -109,6 +109,22 @@ export const AGENTS_TARGET_DIR = join(homedir(), ".config", "opencode", "agents"
  * // Returns: "Source file not found: missing.md"
  */
 export function getErrorMessage(error, file, targetPath) {
+	if (typeof file !== "string") {
+		throw new TypeError(
+			`getErrorMessage: file must be a string, got ${file === null ? "null" : typeof file}`,
+		)
+	}
+	if (file.trim() === "") {
+		throw new TypeError("getErrorMessage: file must not be empty")
+	}
+	if (typeof targetPath !== "string") {
+		throw new TypeError(
+			`getErrorMessage: targetPath must be a string, got ${targetPath === null ? "null" : typeof targetPath}`,
+		)
+	}
+	if (targetPath.trim() === "") {
+		throw new TypeError("getErrorMessage: targetPath must not be empty")
+	}
 	const code = error.code
 	switch (code) {
 		case "EACCES":

@@ -280,6 +280,104 @@ describe("paths.mjs exports", () => {
 			const result = getErrorMessage(error, testFile, testTargetPath)
 			expect(result).toBe("File is busy or locked. Try again later")
 		})
+
+		describe("input validation", () => {
+			const validError = new Error("test error")
+
+			it("should throw TypeError for null file", () => {
+				expect(() =>
+					getErrorMessage(validError, null as unknown as string, testTargetPath),
+				).toThrow(TypeError)
+				expect(() =>
+					getErrorMessage(validError, null as unknown as string, testTargetPath),
+				).toThrow("getErrorMessage: file must be a string, got null")
+			})
+
+			it("should throw TypeError for undefined file", () => {
+				expect(() =>
+					getErrorMessage(validError, undefined as unknown as string, testTargetPath),
+				).toThrow(TypeError)
+				expect(() =>
+					getErrorMessage(validError, undefined as unknown as string, testTargetPath),
+				).toThrow("getErrorMessage: file must be a string, got undefined")
+			})
+
+			it("should throw TypeError for non-string file", () => {
+				expect(() => getErrorMessage(validError, 123 as unknown as string, testTargetPath)).toThrow(
+					TypeError,
+				)
+				expect(() => getErrorMessage(validError, 123 as unknown as string, testTargetPath)).toThrow(
+					"getErrorMessage: file must be a string, got number",
+				)
+				expect(() => getErrorMessage(validError, {} as unknown as string, testTargetPath)).toThrow(
+					TypeError,
+				)
+				expect(() => getErrorMessage(validError, {} as unknown as string, testTargetPath)).toThrow(
+					"getErrorMessage: file must be a string, got object",
+				)
+			})
+
+			it("should throw TypeError for empty string file", () => {
+				expect(() => getErrorMessage(validError, "", testTargetPath)).toThrow(TypeError)
+				expect(() => getErrorMessage(validError, "", testTargetPath)).toThrow(
+					"getErrorMessage: file must not be empty",
+				)
+			})
+
+			it("should throw TypeError for whitespace-only file", () => {
+				expect(() => getErrorMessage(validError, "   ", testTargetPath)).toThrow(TypeError)
+				expect(() => getErrorMessage(validError, "   ", testTargetPath)).toThrow(
+					"getErrorMessage: file must not be empty",
+				)
+			})
+
+			it("should throw TypeError for null targetPath", () => {
+				expect(() => getErrorMessage(validError, testFile, null as unknown as string)).toThrow(
+					TypeError,
+				)
+				expect(() => getErrorMessage(validError, testFile, null as unknown as string)).toThrow(
+					"getErrorMessage: targetPath must be a string, got null",
+				)
+			})
+
+			it("should throw TypeError for undefined targetPath", () => {
+				expect(() => getErrorMessage(validError, testFile, undefined as unknown as string)).toThrow(
+					TypeError,
+				)
+				expect(() => getErrorMessage(validError, testFile, undefined as unknown as string)).toThrow(
+					"getErrorMessage: targetPath must be a string, got undefined",
+				)
+			})
+
+			it("should throw TypeError for non-string targetPath", () => {
+				expect(() => getErrorMessage(validError, testFile, 123 as unknown as string)).toThrow(
+					TypeError,
+				)
+				expect(() => getErrorMessage(validError, testFile, 123 as unknown as string)).toThrow(
+					"getErrorMessage: targetPath must be a string, got number",
+				)
+				expect(() => getErrorMessage(validError, testFile, {} as unknown as string)).toThrow(
+					TypeError,
+				)
+				expect(() => getErrorMessage(validError, testFile, {} as unknown as string)).toThrow(
+					"getErrorMessage: targetPath must be a string, got object",
+				)
+			})
+
+			it("should throw TypeError for empty string targetPath", () => {
+				expect(() => getErrorMessage(validError, testFile, "")).toThrow(TypeError)
+				expect(() => getErrorMessage(validError, testFile, "")).toThrow(
+					"getErrorMessage: targetPath must not be empty",
+				)
+			})
+
+			it("should throw TypeError for whitespace-only targetPath", () => {
+				expect(() => getErrorMessage(validError, testFile, "   ")).toThrow(TypeError)
+				expect(() => getErrorMessage(validError, testFile, "   ")).toThrow(
+					"getErrorMessage: targetPath must not be empty",
+				)
+			})
+		})
 	})
 
 	describe("constants", () => {
