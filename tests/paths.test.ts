@@ -194,20 +194,22 @@ describe("paths.mjs exports", () => {
 			const error = Object.assign(new Error("EACCES"), { code: "EACCES" })
 			const result = getErrorMessage(error, testFile, testTargetPath)
 			expect(result).toBe(
-				"Permission denied. Check write permissions for /home/user/.config/opencode/agents",
+				"Permission denied. Check write permissions for /home/user/.config/opencode/agents. Try: chmod u+w /home/user/.config/opencode/agents or run with sudo",
 			)
 		})
 
 		it("should return operation not permitted message for EPERM error", () => {
 			const error = Object.assign(new Error("EPERM"), { code: "EPERM" })
 			const result = getErrorMessage(error, testFile, testTargetPath)
-			expect(result).toBe("Operation not permitted. The file may be in use or locked")
+			expect(result).toBe(
+				"Operation not permitted. The file may be in use or locked. Try: lsof <file> to check what process is using it",
+			)
 		})
 
 		it("should return disk full message for ENOSPC error", () => {
 			const error = Object.assign(new Error("ENOSPC"), { code: "ENOSPC" })
 			const result = getErrorMessage(error, testFile, testTargetPath)
-			expect(result).toBe("Disk full. Free up space and try again")
+			expect(result).toBe("Disk full. Free up space and try again. Try: df -h to check disk usage")
 		})
 
 		it("should return source file not found message for ENOENT error", () => {
@@ -219,7 +221,9 @@ describe("paths.mjs exports", () => {
 		it("should return read-only filesystem message for EROFS error", () => {
 			const error = Object.assign(new Error("EROFS"), { code: "EROFS" })
 			const result = getErrorMessage(error, testFile, testTargetPath)
-			expect(result).toBe("Read-only file system. Cannot write to target directory")
+			expect(result).toBe(
+				"Read-only file system. Cannot write to target directory. Try: mount -o remount,rw <device> <mountpoint>",
+			)
 		})
 
 		it("should return too many open files message for EMFILE error", () => {
@@ -268,7 +272,9 @@ describe("paths.mjs exports", () => {
 			const error = Object.assign(new Error("EACCES"), { code: "EACCES" })
 			const deepPath = "/very/deep/nested/path/file.md"
 			const result = getErrorMessage(error, "file.md", deepPath)
-			expect(result).toBe("Permission denied. Check write permissions for /very/deep/nested/path")
+			expect(result).toBe(
+				"Permission denied. Check write permissions for /very/deep/nested/path. Try: chmod u+w /very/deep/nested/path or run with sudo",
+			)
 		})
 
 		it("should return resource temporarily unavailable message for EAGAIN error", () => {

@@ -147,15 +147,15 @@ export function getErrorMessage(error, file, targetPath) {
 	const code = error.code
 	switch (code) {
 		case "EACCES":
-			return `Permission denied. Check write permissions for ${dirname(targetPath)}`
+			return `Permission denied. Check write permissions for ${dirname(targetPath)}. Try: chmod u+w ${dirname(targetPath)} or run with sudo`
 		case "EPERM":
-			return "Operation not permitted. The file may be in use or locked"
+			return "Operation not permitted. The file may be in use or locked. Try: lsof <file> to check what process is using it"
 		case "ENOSPC":
-			return "Disk full. Free up space and try again"
+			return "Disk full. Free up space and try again. Try: df -h to check disk usage"
 		case "ENOENT":
 			return `Source file not found: ${file}`
 		case "EROFS":
-			return "Read-only file system. Cannot write to target directory"
+			return "Read-only file system. Cannot write to target directory. Try: mount -o remount,rw <device> <mountpoint>"
 		case "EMFILE":
 		case "ENFILE":
 			return "Too many open files. Close some applications and try again"
