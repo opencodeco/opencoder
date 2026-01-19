@@ -28,6 +28,7 @@ const AGENTS_SOURCE_DIR = getAgentsSourceDir(packageRoot)
 const flags = parseCliFlags(process.argv)
 const DRY_RUN = flags.dryRun
 const VERBOSE = flags.verbose
+const QUIET = flags.quiet
 
 /** Print usage information and exit */
 if (flags.help) {
@@ -38,18 +39,22 @@ Install OpenCoder agents to ~/.config/opencode/agents/
 Options:
   --dry-run   Simulate installation without copying files
   --verbose   Enable verbose output for debugging
+  --quiet     Suppress non-error output (for CI environments)
   --help      Show this help message and exit
 
 Examples:
   node postinstall.mjs              # Install agents
   node postinstall.mjs --dry-run    # Preview what would be installed
-  node postinstall.mjs --verbose    # Install with detailed logging`)
+  node postinstall.mjs --verbose    # Install with detailed logging
+  node postinstall.mjs --quiet      # Install silently (errors only)`)
 	process.exit(0)
 }
 
-/** Create logger with verbose flag */
-const logger = createLogger(VERBOSE)
+/** Create logger with verbose and quiet flags */
+const logger = createLogger(VERBOSE, QUIET)
 const verbose = logger.verbose
+const log = logger.log
+const logError = logger.error
 
 /**
  * Main entry point for the postinstall script.
@@ -79,7 +84,7 @@ const verbose = logger.verbose
  */
 async function main() {
 	const prefix = DRY_RUN ? "[DRY-RUN] " : ""
-	console.log(`${prefix}opencode-plugin-opencoder: Installing agents...`)
+	log(`${prefix}opencode-plugin-opencoder: Installing agents...`)
 
 	verbose(`Package root: ${packageRoot}`)
 	verbose(`Source directory: ${AGENTS_SOURCE_DIR}`)
@@ -90,10 +95,10 @@ async function main() {
 	if (!existsSync(AGENTS_TARGET_DIR)) {
 		verbose(`Target directory does not exist, creating...`)
 		if (DRY_RUN) {
-			console.log(`${prefix}Would create ${AGENTS_TARGET_DIR}`)
+			log(`${prefix}Would create ${AGENTS_TARGET_DIR}`)
 		} else {
 			mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
-			console.log(`  Created ${AGENTS_TARGET_DIR}`)
+			log(`  Created ${AGENTS_TARGET_DIR}`)
 		}
 	} else {
 		verbose(`Target directory already exists`)
@@ -102,7 +107,7 @@ async function main() {
 	// Check if source directory exists
 	verbose(`Checking source directory exists...`)
 	if (!existsSync(AGENTS_SOURCE_DIR)) {
-		console.error(`${prefix}  Error: Source agents directory not found at ${AGENTS_SOURCE_DIR}`)
+		logError(`${prefix}  Error: Source agents directory not found at ${AGENTS_SOURCE_DIR}`)
 		process.exit(1)
 	}
 	verbose(`Source directory found`)
@@ -114,7 +119,7 @@ async function main() {
 	verbose(`Markdown files found: ${files.length}`)
 
 	if (files.length === 0) {
-		console.error(`${prefix}  Error: No agent files found in agents/ directory`)
+		logError(`${prefix}  Error: No agent files found in agents/ directory`)
 		process.exit(1)
 	}
 
@@ -149,7 +154,7 @@ async function main() {
 				}
 				verbose(`  Validation passed`)
 				successes.push(file)
-				console.log(`${prefix}Would install: ${file} -> ${targetPath}`)
+				log(`${prefix}Would install: ${file} -> ${targetPath}`)
 			} else {
 				verbose(`  Copying file...`)
 				await retryOnTransientError(() => copyFileSync(sourcePath, targetPath))
@@ -176,41 +181,44 @@ async function main() {
 				verbose(`  Validation passed`)
 
 				successes.push(file)
-				console.log(`  Installed: ${file}`)
+				log(`  Installed: ${file}`)
 			}
 		} catch (err) {
 			const error = err instanceof Error ? err : new Error(String(err))
 			const message = getErrorMessage(error, file, targetPath)
 			failures.push({ file, message })
-			console.error(`${prefix}  Failed: ${file} - ${message}`)
+			logError(`${prefix}  Failed: ${file} - ${message}`)
 		}
 	}
 
 	// Print summary
 	verbose(`Installation summary: ${successes.length} succeeded, ${failures.length} failed`)
-	console.log("")
+	log("")
 	if (successes.length > 0 && failures.length === 0) {
+		// Final success message - always show even in quiet mode
 		console.log(
 			`${prefix}opencode-plugin-opencoder: Successfully installed ${successes.length} agent(s)`,
 		)
-		console.log(`${prefix}  Location: ${AGENTS_TARGET_DIR}`)
+		log(`${prefix}  Location: ${AGENTS_TARGET_DIR}`)
 		if (!DRY_RUN) {
-			console.log("\nTo use the autonomous development loop, run:")
-			console.log("  opencode @opencoder")
+			log("\nTo use the autonomous development loop, run:")
+			log("  opencode @opencoder")
 		}
 	} else if (successes.length > 0 && failures.length > 0) {
+		// Final partial success message - always show even in quiet mode
 		console.log(
 			`${prefix}opencode-plugin-opencoder: Installed ${successes.length} of ${files.length} agent(s)`,
 		)
-		console.log(`${prefix}  Location: ${AGENTS_TARGET_DIR}`)
-		console.error(`\n${prefix}  ${failures.length} file(s) failed to install:`)
+		log(`${prefix}  Location: ${AGENTS_TARGET_DIR}`)
+		logError(`\n${prefix}  ${failures.length} file(s) failed to install:`)
 		for (const { file, message } of failures) {
-			console.error(`${prefix}    - ${file}: ${message}`)
+			logError(`${prefix}    - ${file}: ${message}`)
 		}
 	} else {
+		// Final failure message - always show
 		console.error(`${prefix}opencode-plugin-opencoder: Failed to install any agents`)
 		for (const { file, message } of failures) {
-			console.error(`${prefix}    - ${file}: ${message}`)
+			logError(`${prefix}    - ${file}: ${message}`)
 		}
 		process.exit(1)
 	}

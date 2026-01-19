@@ -304,6 +304,8 @@ export interface CliFlags {
 	dryRun: boolean
 	/** Enable verbose logging output */
 	verbose: boolean
+	/** Suppress non-error output (for CI environments) */
+	quiet: boolean
 	/** Display help information */
 	help: boolean
 }
@@ -314,6 +316,7 @@ export interface CliFlags {
  * Recognizes the following flags:
  * - `--dry-run`: Simulate the operation without making changes
  * - `--verbose`: Enable verbose logging output
+ * - `--quiet`: Suppress non-error output (for CI environments)
  * - `--help`: Display help information
  *
  * @param argv - The command line arguments array (typically process.argv)
@@ -330,41 +333,51 @@ export interface CliFlags {
  * @example
  * // Parse custom arguments
  * const flags = parseCliFlags(["node", "script.js", "--verbose", "--dry-run"])
- * // flags = { dryRun: true, verbose: true, help: false }
+ * // flags = { dryRun: true, verbose: true, quiet: false, help: false }
  */
 export function parseCliFlags(argv: string[]): CliFlags
 
 /**
- * Logger object with standard and verbose logging methods.
+ * Logger object with standard, verbose, and error logging methods.
  */
 export interface Logger {
-	/** Log a message to console */
+	/** Log a message to console (suppressed in quiet mode) */
 	log: (message: string) => void
-	/** Log a verbose message (only when verbose mode is enabled) */
+	/** Log a verbose message (only when verbose mode is enabled, suppressed in quiet mode) */
 	verbose: (message: string) => void
+	/** Log an error message to stderr (never suppressed) */
+	error: (message: string) => void
 }
 
 /**
- * Creates a logger object with standard and verbose logging methods.
+ * Creates a logger object with standard, verbose, and error logging methods.
  *
- * The logger provides two methods:
- * - `log(message)`: Always logs to console.log
+ * The logger provides three methods:
+ * - `log(message)`: Logs to console.log unless quiet mode is enabled
  * - `verbose(message)`: Only logs when verbose mode is enabled, prefixed with [VERBOSE]
+ * - `error(message)`: Always logs to console.error (never suppressed)
  *
  * @param verbose - Whether verbose logging is enabled
- * @returns Logger object with log and verbose methods
+ * @param quiet - Whether quiet mode is enabled (suppresses non-error output)
+ * @returns Logger object with log, verbose, and error methods
  *
  * @example
  * const logger = createLogger(true)
  * logger.log("Installing agents...")     // Always prints
  * logger.verbose("Source: /path/to/src") // Prints: [VERBOSE] Source: /path/to/src
+ * logger.error("Failed to install")      // Always prints to stderr
  *
  * @example
  * const logger = createLogger(false)
  * logger.log("Installing agents...")     // Prints
  * logger.verbose("Source: /path/to/src") // Does nothing (verbose disabled)
+ *
+ * @example
+ * const logger = createLogger(false, true) // quiet mode
+ * logger.log("Installing agents...")     // Suppressed (quiet mode)
+ * logger.error("Failed to install")      // Still prints (errors always shown)
  */
-export function createLogger(verbose: boolean): Logger
+export function createLogger(verbose: boolean, quiet?: boolean): Logger
 
 /**
  * Result of validating an agent file.

@@ -444,10 +444,11 @@ export function validateAgentContent(content) {
  * Recognizes the following flags:
  * - `--dry-run`: Simulate the operation without making changes
  * - `--verbose`: Enable verbose logging output
+ * - `--quiet`: Suppress non-error output (for CI environments)
  * - `--help`: Display help information
  *
  * @param {string[]} argv - The command line arguments array (typically process.argv)
- * @returns {{ dryRun: boolean, verbose: boolean, help: boolean }} Parsed flags
+ * @returns {{ dryRun: boolean, verbose: boolean, quiet: boolean, help: boolean }} Parsed flags
  *
  * @example
  * // Parse process.argv
@@ -460,7 +461,7 @@ export function validateAgentContent(content) {
  * @example
  * // Parse custom arguments
  * const flags = parseCliFlags(["node", "script.js", "--verbose", "--dry-run"])
- * // flags = { dryRun: true, verbose: true, help: false }
+ * // flags = { dryRun: true, verbose: true, quiet: false, help: false }
  * @throws {TypeError} If argv is not an array
  */
 export function parseCliFlags(argv) {
@@ -472,6 +473,7 @@ export function parseCliFlags(argv) {
 	return {
 		dryRun: argv.includes("--dry-run"),
 		verbose: argv.includes("--verbose"),
+		quiet: argv.includes("--quiet"),
 		help: argv.includes("--help"),
 	}
 }
@@ -479,36 +481,54 @@ export function parseCliFlags(argv) {
 /**
  * Creates a logger object with standard and verbose logging methods.
  *
- * The logger provides two methods:
- * - `log(message)`: Always logs to console.log
+ * The logger provides three methods:
+ * - `log(message)`: Logs to console.log unless quiet mode is enabled
  * - `verbose(message)`: Only logs when verbose mode is enabled, prefixed with [VERBOSE]
+ * - `error(message)`: Always logs to console.error (never suppressed)
  *
  * @param {boolean} verbose - Whether verbose logging is enabled
- * @returns {{ log: (message: string) => void, verbose: (message: string) => void }} Logger object
+ * @param {boolean} [quiet=false] - Whether quiet mode is enabled (suppresses non-error output)
+ * @returns {{ log: (message: string) => void, verbose: (message: string) => void, error: (message: string) => void }} Logger object
  *
  * @example
  * const logger = createLogger(true)
  * logger.log("Installing agents...")     // Always prints
  * logger.verbose("Source: /path/to/src") // Prints: [VERBOSE] Source: /path/to/src
+ * logger.error("Failed to install")      // Always prints to stderr
  *
  * @example
  * const logger = createLogger(false)
  * logger.log("Installing agents...")     // Prints
  * logger.verbose("Source: /path/to/src") // Does nothing (verbose disabled)
+ *
+ * @example
+ * const logger = createLogger(false, true) // quiet mode
+ * logger.log("Installing agents...")     // Suppressed (quiet mode)
+ * logger.error("Failed to install")      // Still prints (errors always shown)
  */
-export function createLogger(verbose) {
+export function createLogger(verbose, quiet = false) {
 	if (typeof verbose !== "boolean") {
 		throw new TypeError(
 			`createLogger: verbose must be a boolean, got ${verbose === null ? "null" : typeof verbose}`,
 		)
 	}
+	if (typeof quiet !== "boolean") {
+		throw new TypeError(
+			`createLogger: quiet must be a boolean, got ${quiet === null ? "null" : typeof quiet}`,
+		)
+	}
 	return {
-		log: (message) => console.log(message),
+		log: (message) => {
+			if (!quiet) {
+				console.log(message)
+			}
+		},
 		verbose: (message) => {
-			if (verbose) {
+			if (verbose && !quiet) {
 				console.log(`[VERBOSE] ${message}`)
 			}
 		},
+		error: (message) => console.error(message),
 	}
 }
 

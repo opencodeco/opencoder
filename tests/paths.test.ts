@@ -1989,18 +1989,19 @@ This is a test agent that handles various tasks.
 	describe("parseCliFlags", () => {
 		it("should return all false flags for empty argv", () => {
 			const result = parseCliFlags([])
-			expect(result).toEqual({ dryRun: false, verbose: false, help: false })
+			expect(result).toEqual({ dryRun: false, verbose: false, quiet: false, help: false })
 		})
 
 		it("should return all false flags for argv without flags", () => {
 			const result = parseCliFlags(["node", "script.js"])
-			expect(result).toEqual({ dryRun: false, verbose: false, help: false })
+			expect(result).toEqual({ dryRun: false, verbose: false, quiet: false, help: false })
 		})
 
 		it("should detect --dry-run flag", () => {
 			const result = parseCliFlags(["node", "script.js", "--dry-run"])
 			expect(result.dryRun).toBe(true)
 			expect(result.verbose).toBe(false)
+			expect(result.quiet).toBe(false)
 			expect(result.help).toBe(false)
 		})
 
@@ -2008,6 +2009,15 @@ This is a test agent that handles various tasks.
 			const result = parseCliFlags(["node", "script.js", "--verbose"])
 			expect(result.dryRun).toBe(false)
 			expect(result.verbose).toBe(true)
+			expect(result.quiet).toBe(false)
+			expect(result.help).toBe(false)
+		})
+
+		it("should detect --quiet flag", () => {
+			const result = parseCliFlags(["node", "script.js", "--quiet"])
+			expect(result.dryRun).toBe(false)
+			expect(result.verbose).toBe(false)
+			expect(result.quiet).toBe(true)
 			expect(result.help).toBe(false)
 		})
 
@@ -2015,6 +2025,7 @@ This is a test agent that handles various tasks.
 			const result = parseCliFlags(["node", "script.js", "--help"])
 			expect(result.dryRun).toBe(false)
 			expect(result.verbose).toBe(false)
+			expect(result.quiet).toBe(false)
 			expect(result.help).toBe(true)
 		})
 
@@ -2022,28 +2033,50 @@ This is a test agent that handles various tasks.
 			const result = parseCliFlags(["node", "script.js", "--dry-run", "--verbose"])
 			expect(result.dryRun).toBe(true)
 			expect(result.verbose).toBe(true)
+			expect(result.quiet).toBe(false)
 			expect(result.help).toBe(false)
 		})
 
 		it("should detect all flags", () => {
-			const result = parseCliFlags(["node", "script.js", "--dry-run", "--verbose", "--help"])
-			expect(result).toEqual({ dryRun: true, verbose: true, help: true })
+			const result = parseCliFlags([
+				"node",
+				"script.js",
+				"--dry-run",
+				"--verbose",
+				"--quiet",
+				"--help",
+			])
+			expect(result).toEqual({ dryRun: true, verbose: true, quiet: true, help: true })
 		})
 
 		it("should ignore unknown flags", () => {
 			const result = parseCliFlags(["node", "script.js", "--unknown", "--other"])
-			expect(result).toEqual({ dryRun: false, verbose: false, help: false })
+			expect(result).toEqual({ dryRun: false, verbose: false, quiet: false, help: false })
 		})
 
 		it("should handle flags in any position", () => {
-			const result = parseCliFlags(["--verbose", "node", "--dry-run", "script.js", "--help"])
-			expect(result).toEqual({ dryRun: true, verbose: true, help: true })
+			const result = parseCliFlags([
+				"--verbose",
+				"node",
+				"--dry-run",
+				"script.js",
+				"--help",
+				"--quiet",
+			])
+			expect(result).toEqual({ dryRun: true, verbose: true, quiet: true, help: true })
 		})
 
 		it("should not match partial flag names", () => {
-			const result = parseCliFlags(["node", "script.js", "--dry-run-test", "--verbosity"])
+			const result = parseCliFlags([
+				"node",
+				"script.js",
+				"--dry-run-test",
+				"--verbosity",
+				"--quietly",
+			])
 			expect(result.dryRun).toBe(false)
 			expect(result.verbose).toBe(false)
+			expect(result.quiet).toBe(false)
 		})
 
 		it("should throw TypeError for null input", () => {
@@ -2077,10 +2110,11 @@ This is a test agent that handles various tasks.
 	})
 
 	describe("createLogger", () => {
-		it("should return an object with log and verbose methods", () => {
+		it("should return an object with log, verbose, and error methods", () => {
 			const logger = createLogger(false)
 			expect(typeof logger.log).toBe("function")
 			expect(typeof logger.verbose).toBe("function")
+			expect(typeof logger.error).toBe("function")
 		})
 
 		it("should throw TypeError for null input", () => {
@@ -2280,6 +2314,108 @@ This is a test agent that handles various tasks.
 			expect(messages[0]).toBe("[VERBOSE] simple")
 			expect(messages[1]).toBe("[VERBOSE]   leading spaces")
 			expect(messages[2]).toBe("[VERBOSE] trailing spaces  ")
+		})
+
+		describe("quiet mode", () => {
+			it("should suppress log() output when quiet is true", () => {
+				const originalLog = console.log
+				const messages: string[] = []
+				console.log = (msg: string) => messages.push(msg)
+
+				const logger = createLogger(false, true)
+				logger.log("this should be suppressed")
+
+				console.log = originalLog
+				expect(messages).toHaveLength(0)
+			})
+
+			it("should suppress verbose() output when quiet is true", () => {
+				const originalLog = console.log
+				const messages: string[] = []
+				console.log = (msg: string) => messages.push(msg)
+
+				const logger = createLogger(true, true)
+				logger.verbose("this should be suppressed")
+
+				console.log = originalLog
+				expect(messages).toHaveLength(0)
+			})
+
+			it("should never suppress error() output even when quiet is true", () => {
+				const originalError = console.error
+				const messages: string[] = []
+				console.error = (msg: string) => messages.push(msg)
+
+				const logger = createLogger(false, true)
+				logger.error("this should always appear")
+
+				console.error = originalError
+				expect(messages).toContain("this should always appear")
+			})
+
+			it("should log error() to stderr", () => {
+				const originalError = console.error
+				const messages: string[] = []
+				console.error = (msg: string) => messages.push(msg)
+
+				const logger = createLogger(false)
+				logger.error("error message")
+
+				console.error = originalError
+				expect(messages).toContain("error message")
+			})
+
+			it("should suppress both log() and verbose() but not error() when quiet is true", () => {
+				const originalLog = console.log
+				const originalError = console.error
+				const logMessages: string[] = []
+				const errorMessages: string[] = []
+				console.log = (msg: string) => logMessages.push(msg)
+				console.error = (msg: string) => errorMessages.push(msg)
+
+				const logger = createLogger(true, true)
+				logger.log("log message")
+				logger.verbose("verbose message")
+				logger.error("error message")
+
+				console.log = originalLog
+				console.error = originalError
+				expect(logMessages).toHaveLength(0)
+				expect(errorMessages).toContain("error message")
+			})
+
+			it("should default quiet to false when not provided", () => {
+				const originalLog = console.log
+				const messages: string[] = []
+				console.log = (msg: string) => messages.push(msg)
+
+				const logger = createLogger(false)
+				logger.log("this should appear")
+
+				console.log = originalLog
+				expect(messages).toContain("this should appear")
+			})
+
+			it("should throw TypeError for non-boolean quiet parameter", () => {
+				expect(() => createLogger(false, "true" as unknown as boolean)).toThrow(TypeError)
+				expect(() => createLogger(false, "true" as unknown as boolean)).toThrow(
+					"createLogger: quiet must be a boolean, got string",
+				)
+			})
+
+			it("should throw TypeError for null quiet parameter", () => {
+				expect(() => createLogger(false, null as unknown as boolean)).toThrow(TypeError)
+				expect(() => createLogger(false, null as unknown as boolean)).toThrow(
+					"createLogger: quiet must be a boolean, got null",
+				)
+			})
+
+			it("should throw TypeError for number quiet parameter", () => {
+				expect(() => createLogger(false, 1 as unknown as boolean)).toThrow(TypeError)
+				expect(() => createLogger(false, 1 as unknown as boolean)).toThrow(
+					"createLogger: quiet must be a boolean, got number",
+				)
+			})
 		})
 	})
 

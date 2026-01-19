@@ -27,6 +27,7 @@ const AGENTS_SOURCE_DIR = getAgentsSourceDir(packageRoot)
 const flags = parseCliFlags(process.argv)
 const DRY_RUN = flags.dryRun
 const VERBOSE = flags.verbose
+const QUIET = flags.quiet
 
 /** Print usage information and exit */
 if (flags.help) {
@@ -37,18 +38,22 @@ Remove OpenCoder agents from ~/.config/opencode/agents/
 Options:
   --dry-run   Simulate removal without deleting files
   --verbose   Enable verbose output for debugging
+  --quiet     Suppress non-error output (for CI environments)
   --help      Show this help message and exit
 
 Examples:
   node preuninstall.mjs              # Remove agents
   node preuninstall.mjs --dry-run    # Preview what would be removed
-  node preuninstall.mjs --verbose    # Remove with detailed logging`)
+  node preuninstall.mjs --verbose    # Remove with detailed logging
+  node preuninstall.mjs --quiet      # Remove silently (errors only)`)
 	process.exit(0)
 }
 
-/** Create logger with verbose flag */
-const logger = createLogger(VERBOSE)
+/** Create logger with verbose and quiet flags */
+const logger = createLogger(VERBOSE, QUIET)
 const verbose = logger.verbose
+const log = logger.log
+const logError = logger.error
 
 /**
  * Main entry point for the preuninstall script.
@@ -77,7 +82,7 @@ const verbose = logger.verbose
  */
 async function main() {
 	const prefix = DRY_RUN ? "[DRY-RUN] " : ""
-	console.log(`${prefix}opencode-plugin-opencoder: Removing agents...`)
+	log(`${prefix}opencode-plugin-opencoder: Removing agents...`)
 
 	verbose(`Package root: ${packageRoot}`)
 	verbose(`Source directory: ${AGENTS_SOURCE_DIR}`)
@@ -88,7 +93,7 @@ async function main() {
 	verbose(`Checking if target directory exists...`)
 	if (!existsSync(AGENTS_TARGET_DIR)) {
 		verbose(`Target directory does not exist`)
-		console.log(`${prefix}  No agents directory found, nothing to remove`)
+		log(`${prefix}  No agents directory found, nothing to remove`)
 		return
 	}
 	verbose(`Target directory exists`)
@@ -97,7 +102,7 @@ async function main() {
 	verbose(`Checking if source directory exists...`)
 	if (!existsSync(AGENTS_SOURCE_DIR)) {
 		verbose(`Source directory does not exist`)
-		console.log(`${prefix}  Source agents directory not found, skipping cleanup`)
+		log(`${prefix}  Source agents directory not found, skipping cleanup`)
 		return
 	}
 	verbose(`Source directory exists`)
@@ -108,7 +113,7 @@ async function main() {
 	verbose(`Markdown files to remove: ${agentFiles.length}`)
 
 	if (agentFiles.length === 0) {
-		console.log(`${prefix}  No agent files to remove`)
+		log(`${prefix}  No agent files to remove`)
 		return
 	}
 
@@ -123,18 +128,18 @@ async function main() {
 			verbose(`  File exists, removing...`)
 			try {
 				if (DRY_RUN) {
-					console.log(`${prefix}Would remove: ${targetPath}`)
+					log(`${prefix}Would remove: ${targetPath}`)
 					removedCount++
 				} else {
 					await retryOnTransientError(() => unlinkSync(targetPath))
-					console.log(`  Removed: ${file}`)
+					log(`  Removed: ${file}`)
 					removedCount++
 				}
 				verbose(`  Successfully removed`)
 			} catch (err) {
 				const error = err instanceof Error ? err : new Error(String(err))
 				const message = getErrorMessage(error, file, targetPath)
-				console.error(`${prefix}  Warning: Could not remove ${file}: ${message}`)
+				logError(`${prefix}  Warning: Could not remove ${file}: ${message}`)
 				verbose(`  Error details: ${error.message}`)
 			}
 		} else {
@@ -144,8 +149,10 @@ async function main() {
 
 	verbose(`Removal summary: ${removedCount} files removed`)
 	if (removedCount > 0) {
+		// Final success message - always show even in quiet mode
 		console.log(`\n${prefix}opencode-plugin-opencoder: Removed ${removedCount} agent(s)`)
 	} else {
+		// Final status message - always show even in quiet mode
 		console.log(`\n${prefix}opencode-plugin-opencoder: No agents were installed, nothing removed`)
 	}
 }
