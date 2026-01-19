@@ -1398,6 +1398,192 @@ url: https://example.com
 				"parseFrontmatter: content must be a string, got boolean",
 			)
 		})
+
+		describe("edge cases with malformed YAML", () => {
+			it("should return empty fields for frontmatter with only whitespace between delimiters", () => {
+				const content = `---
+   
+	
+---
+# Content`
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
+				expect(result.fields).toEqual({})
+				expect(result.endIndex).toBeGreaterThan(0)
+			})
+
+			it("should handle values containing unbalanced double quotes", () => {
+				const content = `---
+name: "Unbalanced quote value
+version: 1.0
+---
+# Content`
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
+				// The unbalanced quote is kept as-is since it doesn't match the balanced quote pattern
+				expect(result.fields.name).toBe('"Unbalanced quote value')
+				expect(result.fields.version).toBe("1.0")
+			})
+
+			it("should handle values containing unbalanced single quotes", () => {
+				const content = `---
+name: 'Unbalanced single quote
+version: 1.0
+---
+# Content`
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
+				// The unbalanced quote is kept as-is
+				expect(result.fields.name).toBe("'Unbalanced single quote")
+				expect(result.fields.version).toBe("1.0")
+			})
+
+			it("should handle values with mismatched quote types", () => {
+				const content = `---
+name: "Mismatched quotes'
+version: 1.0
+---
+# Content`
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
+				// Mismatched quotes are not stripped
+				expect(result.fields.name).toBe("\"Mismatched quotes'")
+				expect(result.fields.version).toBe("1.0")
+			})
+
+			it("should return unclosed when closing --- is on same line as content", () => {
+				const content = `---
+version: 1.0
+requires: opencode---
+# Content`
+				const result = parseFrontmatter(content)
+				// The closing --- must be on its own line (preceded by \n)
+				// "opencode---" does not match "\n---" pattern
+				expect(result.found).toBe(false)
+				expect(result.reason).toBe("unclosed")
+			})
+
+			it("should handle closing --- immediately after newline with no space", () => {
+				const content = `---
+version: 1.0
+---`
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
+				expect(result.fields.version).toBe("1.0")
+			})
+
+			it("should use the last value when duplicate keys exist", () => {
+				const content = `---
+version: 1.0
+requires: opencode
+version: 2.0
+---
+# Content`
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
+				// The parser iterates through lines and overwrites, so last value wins
+				expect(result.fields.version).toBe("2.0")
+				expect(result.fields.requires).toBe("opencode")
+			})
+
+			it("should handle multiple duplicate keys with last value winning", () => {
+				const content = `---
+key: first
+key: second
+key: third
+---
+# Content`
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
+				expect(result.fields.key).toBe("third")
+			})
+
+			it("should preserve leading whitespace in values", () => {
+				const content = `---
+name:   leading spaces
+version: 1.0
+---
+# Content`
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
+				// trim() is called on the value, so leading spaces are removed
+				expect(result.fields.name).toBe("leading spaces")
+			})
+
+			it("should preserve trailing whitespace in values (trimmed)", () => {
+				const content = `---
+name: trailing spaces   
+version: 1.0
+---
+# Content`
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
+				// trim() is called on the value, so trailing spaces are removed
+				expect(result.fields.name).toBe("trailing spaces")
+			})
+
+			it("should handle values with both leading and trailing whitespace", () => {
+				const content = `---
+name:   surrounded by spaces   
+version: 1.0
+---
+# Content`
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
+				// Both leading and trailing spaces are trimmed
+				expect(result.fields.name).toBe("surrounded by spaces")
+			})
+
+			it("should handle whitespace-only values as empty strings", () => {
+				const content = `---
+name:    
+version: 1.0
+---
+# Content`
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
+				// Whitespace-only value becomes empty string after trim
+				expect(result.fields.name).toBe("")
+				expect(result.fields.version).toBe("1.0")
+			})
+
+			it("should handle quoted values with internal whitespace preserved", () => {
+				const content = `---
+name: "  internal spaces  "
+version: 1.0
+---
+# Content`
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
+				// Quotes are stripped, but internal whitespace is preserved
+				expect(result.fields.name).toBe("  internal spaces  ")
+			})
+
+			it("should handle empty value after colon", () => {
+				const content = `---
+name:
+version: 1.0
+---
+# Content`
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
+				expect(result.fields.name).toBe("")
+				expect(result.fields.version).toBe("1.0")
+			})
+
+			it("should handle keys with leading/trailing whitespace", () => {
+				const content = `---
+  name  : value
+version: 1.0
+---
+# Content`
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
+				// Key whitespace is trimmed
+				expect(result.fields.name).toBe("value")
+				expect(result.fields.version).toBe("1.0")
+			})
+		})
 	})
 
 	describe("validateAgentContent", () => {
