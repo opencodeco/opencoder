@@ -38,9 +38,30 @@ export function parseVersion(version) {
 /**
  * Validates that a value is a valid ParsedVersion object.
  *
- * @param {unknown} value - The value to validate
- * @param {string} paramName - The parameter name for error messages
- * @throws {TypeError} If value is not a valid ParsedVersion object
+ * This internal helper ensures that values passed to version comparison functions
+ * conform to the expected ParsedVersion structure with numeric major, minor, and
+ * patch properties. It provides descriptive error messages when validation fails.
+ *
+ * @param {unknown} value - The value to validate as a ParsedVersion object
+ * @param {string} paramName - The parameter name used in error messages for context
+ * @returns {void} Returns nothing if validation passes
+ * @throws {TypeError} If value is null or undefined
+ * @throws {TypeError} If value is not an object
+ * @throws {TypeError} If value lacks numeric major, minor, or patch properties
+ *
+ * @example
+ * // Valid ParsedVersion - passes silently
+ * validateParsedVersion({ major: 1, minor: 2, patch: 3 }, "version")
+ *
+ * @example
+ * // Null value - throws TypeError
+ * validateParsedVersion(null, "a")
+ * // Throws: "compareVersions: a must be a ParsedVersion object, got null"
+ *
+ * @example
+ * // Missing properties - throws TypeError
+ * validateParsedVersion({ major: 1 }, "b")
+ * // Throws: "compareVersions: b must have numeric major, minor, and patch properties"
  */
 function validateParsedVersion(value, paramName) {
 	if (value === null || value === undefined) {
