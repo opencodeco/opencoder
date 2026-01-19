@@ -21,12 +21,24 @@ export {
 } from "./semver.mjs"
 
 /**
- * Mock OpenCode version for compatibility checking.
+ * Default OpenCode version for compatibility checking.
  *
  * This version string is used to check agent compatibility requirements
- * during installation. In production, this would ideally be obtained
- * from the OpenCode CLI or environment, but for now it serves as a
- * fallback/default version.
+ * during installation when no override is provided.
+ *
+ * Format: Semantic versioning (MAJOR.MINOR.PATCH)
+ */
+const DEFAULT_OPENCODE_VERSION = "0.1.0"
+
+/**
+ * OpenCode version used for compatibility checking.
+ *
+ * This version string is used to check agent compatibility requirements
+ * during installation. It can be overridden by setting the `OPENCODE_VERSION`
+ * environment variable, which is useful for:
+ * - Testing agents against different OpenCode versions
+ * - Development environments with pre-release OpenCode builds
+ * - CI/CD pipelines that need to simulate specific versions
  *
  * Format: Semantic versioning (MAJOR.MINOR.PATCH)
  *
@@ -35,8 +47,13 @@ export {
  *
  * // Check if an agent requiring ">=0.1.0" is compatible
  * const isCompatible = checkVersionCompatibility(">=0.1.0", OPENCODE_VERSION)
+ *
+ * @example
+ * // Override via environment variable
+ * // OPENCODE_VERSION=1.0.0 node postinstall.mjs
+ * // Now OPENCODE_VERSION will be "1.0.0" instead of the default
  */
-export const OPENCODE_VERSION = "0.1.0"
+export const OPENCODE_VERSION = process.env.OPENCODE_VERSION || DEFAULT_OPENCODE_VERSION
 
 /**
  * List of expected agent names (without .md extension).

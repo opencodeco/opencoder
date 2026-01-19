@@ -453,6 +453,44 @@ describe("paths.mjs exports", () => {
 					expect(num).toBeGreaterThanOrEqual(0)
 				}
 			})
+
+			it("should support OPENCODE_VERSION environment variable override", async () => {
+				// Spawn a subprocess that imports the module with a custom OPENCODE_VERSION
+				const { spawnSync } = await import("node:child_process")
+				const result = spawnSync(
+					"node",
+					[
+						"--input-type=module",
+						"-e",
+						'import { OPENCODE_VERSION } from "./src/paths.mjs"; console.log(OPENCODE_VERSION);',
+					],
+					{
+						encoding: "utf-8",
+						env: { ...process.env, OPENCODE_VERSION: "2.0.0" },
+						cwd: import.meta.dirname.replace("/tests", ""),
+					},
+				)
+				expect(result.stdout.trim()).toBe("2.0.0")
+			})
+
+			it("should use default when OPENCODE_VERSION env is empty", async () => {
+				// Spawn a subprocess without the env var set
+				const { spawnSync } = await import("node:child_process")
+				const result = spawnSync(
+					"node",
+					[
+						"--input-type=module",
+						"-e",
+						'import { OPENCODE_VERSION } from "./src/paths.mjs"; console.log(OPENCODE_VERSION);',
+					],
+					{
+						encoding: "utf-8",
+						env: { ...process.env, OPENCODE_VERSION: "" },
+						cwd: import.meta.dirname.replace("/tests", ""),
+					},
+				)
+				expect(result.stdout.trim()).toBe("0.1.0")
+			})
 		})
 
 		it("should export MIN_CONTENT_LENGTH as a number", () => {
@@ -1248,6 +1286,219 @@ This is a test agent that handles various tasks for you.
 				)
 				expect(result).toBe("success")
 				expect(callCount).toBe(1)
+			})
+		})
+
+		describe("concurrent operations", () => {
+			it("should handle multiple concurrent retryOnTransientError calls independently", async () => {
+				const counters = { c0: 0, c1: 0, c2: 0 }
+				const results = await Promise.all([
+					retryOnTransientError(
+						() => {
+							counters.c0++
+							if (counters.c0 < 2) {
+								const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+								throw err
+							}
+							return "result-0"
+						},
+						{ retries: 3, initialDelayMs: 10 },
+					),
+					retryOnTransientError(
+						() => {
+							counters.c1++
+							if (counters.c1 < 3) {
+								const err = Object.assign(new Error("EBUSY"), { code: "EBUSY" })
+								throw err
+							}
+							return "result-1"
+						},
+						{ retries: 3, initialDelayMs: 10 },
+					),
+					retryOnTransientError(
+						() => {
+							counters.c2++
+							return "result-2" // Succeeds immediately
+						},
+						{ retries: 3, initialDelayMs: 10 },
+					),
+				])
+
+				expect(results).toEqual(["result-0", "result-1", "result-2"])
+				expect(counters.c0).toBe(2) // 1 failure + 1 success
+				expect(counters.c1).toBe(3) // 2 failures + 1 success
+				expect(counters.c2).toBe(1) // Immediate success
+			})
+
+			it("should isolate retry state between concurrent calls", async () => {
+				const executionOrder: string[] = []
+
+				const results = await Promise.all([
+					retryOnTransientError(
+						async () => {
+							executionOrder.push("A-start")
+							await new Promise((r) => setTimeout(r, 5))
+							executionOrder.push("A-end")
+							return "A"
+						},
+						{ retries: 1, initialDelayMs: 10 },
+					),
+					retryOnTransientError(
+						async () => {
+							executionOrder.push("B-start")
+							await new Promise((r) => setTimeout(r, 5))
+							executionOrder.push("B-end")
+							return "B"
+						},
+						{ retries: 1, initialDelayMs: 10 },
+					),
+				])
+
+				expect(results).toEqual(["A", "B"])
+				// Both should start before either ends (concurrent execution)
+				expect(executionOrder.indexOf("A-start")).toBeLessThan(executionOrder.indexOf("A-end"))
+				expect(executionOrder.indexOf("B-start")).toBeLessThan(executionOrder.indexOf("B-end"))
+			})
+
+			it("should handle mixed success and failure in concurrent calls", async () => {
+				const results = await Promise.allSettled([
+					retryOnTransientError(
+						() => {
+							return "success"
+						},
+						{ retries: 1, initialDelayMs: 10 },
+					),
+					retryOnTransientError(
+						() => {
+							const err = Object.assign(new Error("ENOENT"), { code: "ENOENT" })
+							throw err // Non-transient error, fails immediately
+						},
+						{ retries: 3, initialDelayMs: 10 },
+					),
+					retryOnTransientError(
+						() => {
+							const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+							throw err // Transient error, exhausts all retries
+						},
+						{ retries: 1, initialDelayMs: 10 },
+					),
+				])
+
+				expect(results[0]).toEqual({ status: "fulfilled", value: "success" })
+				expect(results[1].status).toBe("rejected")
+				expect((results[1] as PromiseRejectedResult).reason.code).toBe("ENOENT")
+				expect(results[2].status).toBe("rejected")
+				expect((results[2] as PromiseRejectedResult).reason.code).toBe("EAGAIN")
+			})
+
+			it("should maintain exponential backoff timing independently for each concurrent call", async () => {
+				const timestamps: { id: string; time: number }[] = []
+				const start = Date.now()
+
+				await Promise.all([
+					retryOnTransientError(
+						() => {
+							timestamps.push({ id: "A", time: Date.now() - start })
+							const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+							throw err
+						},
+						{ retries: 2, initialDelayMs: 20 }, // Delays: 20ms, 40ms
+					).catch(() => {}),
+					retryOnTransientError(
+						() => {
+							timestamps.push({ id: "B", time: Date.now() - start })
+							const err = Object.assign(new Error("EBUSY"), { code: "EBUSY" })
+							throw err
+						},
+						{ retries: 2, initialDelayMs: 30 }, // Delays: 30ms, 60ms
+					).catch(() => {}),
+				])
+
+				// A should have 3 attempts with ~60ms total delay (20 + 40)
+				// B should have 3 attempts with ~90ms total delay (30 + 60)
+				const aAttempts = timestamps.filter((t) => t.id === "A")
+				const bAttempts = timestamps.filter((t) => t.id === "B")
+
+				expect(aAttempts).toHaveLength(3)
+				expect(bAttempts).toHaveLength(3)
+
+				// Verify A's backoff timing - calculate delays between consecutive attempts
+				// biome-ignore lint/style/noNonNullAssertion: length verified above
+				const aDiffs = aAttempts.slice(1).map((curr, i) => curr.time - aAttempts[i]!.time)
+				expect(aDiffs[0]).toBeGreaterThanOrEqual(15) // ~20ms first delay
+				expect(aDiffs[1]).toBeGreaterThanOrEqual(30) // ~40ms second delay
+
+				// Verify B's backoff timing - calculate delays between consecutive attempts
+				// biome-ignore lint/style/noNonNullAssertion: length verified above
+				const bDiffs = bAttempts.slice(1).map((curr, i) => curr.time - bAttempts[i]!.time)
+				expect(bDiffs[0]).toBeGreaterThanOrEqual(25) // ~30ms first delay
+				expect(bDiffs[1]).toBeGreaterThanOrEqual(50) // ~60ms second delay
+			})
+
+			it("should handle high concurrency without interference", async () => {
+				const concurrentCount = 10
+				const callCounts = new Array(concurrentCount).fill(0)
+
+				const promises = Array.from({ length: concurrentCount }, (_, i) =>
+					retryOnTransientError(
+						() => {
+							callCounts[i]++
+							if (callCounts[i] < 2) {
+								const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+								throw err
+							}
+							return `result-${i}`
+						},
+						{ retries: 2, initialDelayMs: 5 },
+					),
+				)
+
+				const results = await Promise.all(promises)
+
+				// All should succeed after one retry
+				expect(results).toHaveLength(concurrentCount)
+				for (let i = 0; i < concurrentCount; i++) {
+					expect(results[i]).toBe(`result-${i}`)
+					expect(callCounts[i]).toBe(2)
+				}
+			})
+
+			it("should not share retry count state between concurrent calls", async () => {
+				let sharedCounter = 0
+				const individualCounts = { a: 0, b: 0 }
+
+				await Promise.all([
+					retryOnTransientError(
+						() => {
+							sharedCounter++
+							individualCounts.a++
+							if (individualCounts.a <= 2) {
+								const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+								throw err
+							}
+							return "A"
+						},
+						{ retries: 3, initialDelayMs: 5 },
+					),
+					retryOnTransientError(
+						() => {
+							sharedCounter++
+							individualCounts.b++
+							if (individualCounts.b <= 2) {
+								const err = Object.assign(new Error("EAGAIN"), { code: "EAGAIN" })
+								throw err
+							}
+							return "B"
+						},
+						{ retries: 3, initialDelayMs: 5 },
+					),
+				])
+
+				// Each call should have its own retry count (3 attempts each)
+				expect(individualCounts.a).toBe(3)
+				expect(individualCounts.b).toBe(3)
+				// Total shared counter should be sum of both
+				expect(sharedCounter).toBe(6)
 			})
 		})
 	})

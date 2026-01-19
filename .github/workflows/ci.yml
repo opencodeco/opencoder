@@ -39,8 +39,8 @@ jobs:
       - name: Install dependencies
         run: bun install --ignore-scripts
 
-      - name: Run tests
-        run: bun test
+      - name: Run tests with coverage
+        run: bun test --coverage
 
   test-postinstall:
     runs-on: ubuntu-latest
