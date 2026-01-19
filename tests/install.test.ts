@@ -2029,6 +2029,141 @@ The agent handles various tasks and operations in the system.
 		})
 	})
 
+	describe("shipped agent files validation", () => {
+		it("should validate all shipped agent files pass content validation", async () => {
+			const { AGENT_NAMES, validateAgentContent } = await import("../src/paths.mjs")
+
+			const agentsDir = join(process.cwd(), "agents")
+
+			for (const agentName of AGENT_NAMES) {
+				const filePath = join(agentsDir, `${agentName}.md`)
+
+				// Verify file exists
+				expect(existsSync(filePath)).toBe(true)
+
+				// Read and validate content
+				const content = readFileSync(filePath, "utf-8")
+				const result = validateAgentContent(content)
+
+				// Should pass validation
+				expect(result.valid).toBe(true)
+				if (!result.valid) {
+					// Provide helpful error message if validation fails
+					throw new Error(`Agent ${agentName}.md failed validation: ${result.error}`)
+				}
+			}
+		})
+
+		it("should validate all shipped agent files have valid frontmatter", async () => {
+			const { AGENT_NAMES, parseFrontmatter, REQUIRED_FRONTMATTER_FIELDS } = await import(
+				"../src/paths.mjs"
+			)
+
+			const agentsDir = join(process.cwd(), "agents")
+
+			for (const agentName of AGENT_NAMES) {
+				const filePath = join(agentsDir, `${agentName}.md`)
+				const content = readFileSync(filePath, "utf-8")
+
+				// Parse frontmatter
+				const frontmatter = parseFrontmatter(content)
+
+				// Should have frontmatter
+				expect(frontmatter.found).toBe(true)
+
+				// Should have all required fields
+				for (const field of REQUIRED_FRONTMATTER_FIELDS) {
+					expect(frontmatter.fields[field]).toBeDefined()
+					expect(frontmatter.fields[field]).not.toBe("")
+				}
+
+				// Verify version field is valid semver format
+				const versionField = frontmatter.fields.version
+				expect(versionField).toMatch(/^\d+\.\d+\.\d+$/)
+
+				// Verify requires field is a valid version constraint
+				const requiresField = frontmatter.fields.requires
+				expect(requiresField).toMatch(/^[>=<^~]*\d+\.\d+\.\d+$/)
+			}
+		})
+
+		it("should validate all shipped agent files have markdown headers after frontmatter", async () => {
+			const { AGENT_NAMES, parseFrontmatter } = await import("../src/paths.mjs")
+
+			const agentsDir = join(process.cwd(), "agents")
+
+			for (const agentName of AGENT_NAMES) {
+				const filePath = join(agentsDir, `${agentName}.md`)
+				const content = readFileSync(filePath, "utf-8")
+
+				// Parse frontmatter to get endIndex
+				const frontmatter = parseFrontmatter(content)
+				expect(frontmatter.found).toBe(true)
+
+				// Get content after frontmatter
+				const contentAfterFrontmatter = content.slice(frontmatter.endIndex).trimStart()
+
+				// Should start with a markdown header
+				expect(contentAfterFrontmatter.startsWith("# ")).toBe(true)
+
+				// Extract and verify the header title is meaningful
+				const firstLineEnd = contentAfterFrontmatter.indexOf("\n")
+				const headerLine =
+					firstLineEnd !== -1
+						? contentAfterFrontmatter.slice(0, firstLineEnd)
+						: contentAfterFrontmatter
+				expect(headerLine.length).toBeGreaterThan(2) // More than just "# "
+			}
+		})
+
+		it("should validate all shipped agent files contain required keywords", async () => {
+			const { AGENT_NAMES, REQUIRED_KEYWORDS } = await import("../src/paths.mjs")
+
+			const agentsDir = join(process.cwd(), "agents")
+
+			for (const agentName of AGENT_NAMES) {
+				const filePath = join(agentsDir, `${agentName}.md`)
+				const content = readFileSync(filePath, "utf-8")
+				const lowerContent = content.toLowerCase()
+
+				// Should contain at least one required keyword
+				const hasKeyword = REQUIRED_KEYWORDS.some((keyword: string) =>
+					lowerContent.includes(keyword),
+				)
+				expect(hasKeyword).toBe(true)
+			}
+		})
+
+		it("should validate all shipped agent files meet minimum content length", async () => {
+			const { AGENT_NAMES, MIN_CONTENT_LENGTH } = await import("../src/paths.mjs")
+
+			const agentsDir = join(process.cwd(), "agents")
+
+			for (const agentName of AGENT_NAMES) {
+				const filePath = join(agentsDir, `${agentName}.md`)
+				const content = readFileSync(filePath, "utf-8")
+
+				// Should be above minimum length
+				expect(content.length).toBeGreaterThanOrEqual(MIN_CONTENT_LENGTH)
+			}
+		})
+
+		it("should validate shipped agent count matches AGENT_NAMES", async () => {
+			const { AGENT_NAMES } = await import("../src/paths.mjs")
+
+			const agentsDir = join(process.cwd(), "agents")
+			const files = readdirSync(agentsDir).filter((f) => f.endsWith(".md"))
+
+			// Number of .md files should match expected agent names
+			expect(files.length).toBe(AGENT_NAMES.length)
+
+			// All expected agents should exist as files
+			for (const agentName of AGENT_NAMES) {
+				expect(files).toContain(`${agentName}.md`)
+			}
+		})
+	})
+
 	describe("full install/uninstall cycle", () => {
 		it("should install and then cleanly uninstall", async () => {
 			// Create scripts
