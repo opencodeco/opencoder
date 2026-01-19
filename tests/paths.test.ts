@@ -11,6 +11,7 @@ import {
 	getPackageRoot,
 	isTransientError,
 	MIN_CONTENT_LENGTH,
+	OPENCODE_VERSION,
 	parseCliFlags,
 	parseFrontmatter,
 	REQUIRED_FRONTMATTER_FIELDS,
@@ -415,6 +416,36 @@ describe("paths.mjs exports", () => {
 				;(AGENT_NAMES as string[]).pop()
 			}).toThrow()
 			expect(AGENT_NAMES.length).toBe(originalLength)
+		})
+
+		describe("OPENCODE_VERSION", () => {
+			it("should be a string in semantic version format (MAJOR.MINOR.PATCH)", () => {
+				expect(typeof OPENCODE_VERSION).toBe("string")
+				// Semantic version format: X.Y.Z where X, Y, Z are non-negative integers
+				const semverRegex = /^\d+\.\d+\.\d+$/
+				expect(OPENCODE_VERSION).toMatch(semverRegex)
+			})
+
+			it("should have the expected default value", () => {
+				expect(OPENCODE_VERSION).toBe("0.1.0")
+			})
+
+			it("should be usable with checkVersionCompatibility", () => {
+				// Verify it works with the version compatibility checker
+				expect(checkVersionCompatibility(">=0.1.0", OPENCODE_VERSION)).toBe(true)
+				expect(checkVersionCompatibility("0.1.0", OPENCODE_VERSION)).toBe(true)
+				expect(checkVersionCompatibility(">=0.2.0", OPENCODE_VERSION)).toBe(false)
+			})
+
+			it("should consist of three numeric parts separated by dots", () => {
+				const parts = OPENCODE_VERSION.split(".")
+				expect(parts).toHaveLength(3)
+				for (const part of parts) {
+					const num = Number.parseInt(part, 10)
+					expect(Number.isNaN(num)).toBe(false)
+					expect(num).toBeGreaterThanOrEqual(0)
+				}
+			})
 		})
 
 		it("should export MIN_CONTENT_LENGTH as a number", () => {

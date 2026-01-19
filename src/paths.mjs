@@ -17,6 +17,24 @@ export {
 } from "./semver.mjs"
 
 /**
+ * Mock OpenCode version for compatibility checking.
+ *
+ * This version string is used to check agent compatibility requirements
+ * during installation. In production, this would ideally be obtained
+ * from the OpenCode CLI or environment, but for now it serves as a
+ * fallback/default version.
+ *
+ * Format: Semantic versioning (MAJOR.MINOR.PATCH)
+ *
+ * @example
+ * import { OPENCODE_VERSION, checkVersionCompatibility } from "./paths.mjs"
+ *
+ * // Check if an agent requiring ">=0.1.0" is compatible
+ * const isCompatible = checkVersionCompatibility(">=0.1.0", OPENCODE_VERSION)
+ */
+export const OPENCODE_VERSION = "0.1.0"
+
+/**
  * List of expected agent names (without .md extension).
  * This is the single source of truth for agent filenames.
  * Frozen to prevent accidental mutation.

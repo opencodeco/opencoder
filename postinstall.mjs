@@ -17,17 +17,12 @@ import {
 	getAgentsSourceDir,
 	getErrorMessage,
 	getPackageRoot,
+	OPENCODE_VERSION,
 	parseCliFlags,
 	parseFrontmatter,
 	retryOnTransientError,
 	validateAgentContent,
 } from "./src/paths.mjs"
-
-/**
- * Mock OpenCode version for compatibility checking.
- * In production, this would be obtained from the OpenCode CLI or environment.
- */
-const OPENCODE_VERSION = "0.1.0"
 
 const packageRoot = getPackageRoot(import.meta.url)
 const AGENTS_SOURCE_DIR = getAgentsSourceDir(packageRoot)
