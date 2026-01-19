@@ -329,6 +329,46 @@ describe("semver.mjs exports", () => {
 				expect(checkVersionCompatibility("^", "1.0.0")).toBe(false)
 			})
 
+			it("should return false for malformed range with missing patch version", () => {
+				// "^1.2" is missing the patch number, so parseVersion returns null
+				expect(checkVersionCompatibility("^1.2", "1.2.0")).toBe(false)
+				expect(checkVersionCompatibility("~1.2", "1.2.0")).toBe(false)
+				expect(checkVersionCompatibility(">=1.2", "1.2.0")).toBe(false)
+				expect(checkVersionCompatibility(">1.2", "1.2.0")).toBe(false)
+				expect(checkVersionCompatibility("<=1.2", "1.2.0")).toBe(false)
+				expect(checkVersionCompatibility("<1.2", "1.2.0")).toBe(false)
+			})
+
+			it("should return false for malformed range with too many version parts", () => {
+				// ">=1.2.3.4" has too many parts, so parseVersion returns null
+				expect(checkVersionCompatibility(">=1.2.3.4", "1.2.3")).toBe(false)
+				expect(checkVersionCompatibility("^1.2.3.4", "1.2.3")).toBe(false)
+				expect(checkVersionCompatibility("~1.2.3.4", "1.2.3")).toBe(false)
+				expect(checkVersionCompatibility(">1.2.3.4", "1.2.3")).toBe(false)
+				expect(checkVersionCompatibility("<=1.2.3.4", "1.2.3")).toBe(false)
+				expect(checkVersionCompatibility("<1.2.3.4", "1.2.3")).toBe(false)
+			})
+
+			it("should return false for malformed range with double operator", () => {
+				// ">>1.0.0" - the first > is consumed, leaving ">1.0.0" which is still invalid
+				// because parseVersion(">1.0.0") returns null (starts with non-digit)
+				expect(checkVersionCompatibility(">>1.0.0", "1.0.1")).toBe(false)
+				expect(checkVersionCompatibility(">>1.0.0", "2.0.0")).toBe(false)
+				expect(checkVersionCompatibility(">>=1.0.0", "1.0.0")).toBe(false)
+				expect(checkVersionCompatibility("^^1.0.0", "1.0.0")).toBe(false)
+				expect(checkVersionCompatibility("~~1.0.0", "1.0.0")).toBe(false)
+			})
+
+			it("should return false for operator-only ranges without version numbers", () => {
+				// These are operators with no version number
+				expect(checkVersionCompatibility("^", "1.0.0")).toBe(false)
+				expect(checkVersionCompatibility("~", "1.0.0")).toBe(false)
+				expect(checkVersionCompatibility(">=", "1.0.0")).toBe(false)
+				expect(checkVersionCompatibility(">", "1.0.0")).toBe(false)
+				expect(checkVersionCompatibility("<=", "1.0.0")).toBe(false)
+				expect(checkVersionCompatibility("<", "1.0.0")).toBe(false)
+			})
+
 			it("should throw TypeError for null required", () => {
 				expect(() => checkVersionCompatibility(null as unknown as string, "1.0.0")).toThrow(
 					TypeError,
