@@ -28,6 +28,7 @@ const flags = parseCliFlags(process.argv)
 const DRY_RUN = flags.dryRun
 const VERBOSE = flags.verbose
 const QUIET = flags.quiet
+const FORCE = flags.force
 
 /** Print usage information and exit */
 if (flags.help) {
@@ -90,6 +91,12 @@ async function main() {
 	verbose(`Source directory: ${AGENTS_SOURCE_DIR}`)
 	verbose(`Target directory: ${AGENTS_TARGET_DIR}`)
 	verbose(`Dry run: ${DRY_RUN}`)
+	verbose(`Force: ${FORCE}`)
+
+	// Note about force mode for uninstall
+	if (FORCE) {
+		verbose(`Force mode enabled: removal will proceed without additional checks`)
+	}
 
 	// Check if target directory exists
 	verbose(`Checking if target directory exists...`)

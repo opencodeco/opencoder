@@ -397,6 +397,8 @@ export interface ValidateAgentFileResult {
 	valid: boolean
 	/** Error message if validation failed */
 	error?: string
+	/** Whether version compatibility check was skipped (when force=true and version is incompatible) */
+	skippedVersionCheck?: boolean
 }
 
 /**
@@ -405,10 +407,11 @@ export interface ValidateAgentFileResult {
  *
  * Performs the following validations:
  * 1. Content structure validation (frontmatter, headers, keywords)
- * 2. Version compatibility checking against current OpenCode version
+ * 2. Version compatibility checking against current OpenCode version (unless force=true)
  *
  * @param filePath - Path to the agent file to validate
  * @param currentVersion - The current OpenCode version to check against (defaults to OPENCODE_VERSION)
+ * @param force - When true, skip version compatibility checks (default: false)
  * @returns Validation result with valid status and optional error message
  * @throws {Error} If the file does not exist (ENOENT)
  * @throws {Error} If permission is denied reading the file (EACCES)
@@ -434,5 +437,12 @@ export interface ValidateAgentFileResult {
  * @example
  * // Validate against a specific version
  * const result = validateAgentFile('/path/to/agent.md', '1.0.0')
+ *
+ * @example
+ * // Force install, skipping version compatibility check
+ * const result = validateAgentFile('/path/to/agent.md', '1.0.0', true)
+ * if (result.skippedVersionCheck) {
+ *   console.warn('Warning: Version compatibility check was skipped')
+ * }
  */
-export function validateAgentFile(filePath: string, currentVersion?: string): ValidateAgentFileResult
+export function validateAgentFile(filePath: string, currentVersion?: string, force?: boolean): ValidateAgentFileResult

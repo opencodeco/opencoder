@@ -557,11 +557,12 @@ export function createLogger(verbose, quiet = false) {
  *
  * Performs the following validations:
  * 1. Content structure validation (frontmatter, headers, keywords)
- * 2. Version compatibility checking against current OpenCode version
+ * 2. Version compatibility checking against current OpenCode version (unless force=true)
  *
  * @param {string} filePath - Path to the agent file to validate
  * @param {string} [currentVersion] - The current OpenCode version to check against (defaults to OPENCODE_VERSION)
- * @returns {{ valid: boolean, error?: string }} Validation result with optional error message
+ * @param {boolean} [force=false] - When true, skip version compatibility checks
+ * @returns {{ valid: boolean, error?: string, skippedVersionCheck?: boolean }} Validation result with optional error message
  * @throws {Error} If the file does not exist (ENOENT)
  * @throws {Error} If permission is denied reading the file (EACCES)
  * @throws {Error} If the file is a directory (EISDIR)
@@ -586,8 +587,15 @@ export function createLogger(verbose, quiet = false) {
  * @example
  * // Validate against a specific version
  * const result = validateAgentFile('/path/to/agent.md', '1.0.0')
+ *
+ * @example
+ * // Force install, skipping version compatibility check
+ * const result = validateAgentFile('/path/to/agent.md', '1.0.0', true)
+ * if (result.skippedVersionCheck) {
+ *   console.warn('Warning: Version compatibility check was skipped')
+ * }
  */
-export function validateAgentFile(filePath, currentVersion = OPENCODE_VERSION) {
+export function validateAgentFile(filePath, currentVersion = OPENCODE_VERSION, force = false) {
 	if (typeof filePath !== "string") {
 		throw new TypeError(
 			`validateAgentFile: filePath must be a string, got ${filePath === null ? "null" : typeof filePath}`,
@@ -603,12 +611,16 @@ export function validateAgentFile(filePath, currentVersion = OPENCODE_VERSION) {
 		return contentValidation
 	}
 
-	// Check version compatibility from frontmatter
+	// Check version compatibility from frontmatter (unless force is true)
 	const frontmatter = parseFrontmatter(content)
 	if (frontmatter.found && frontmatter.fields.requires) {
 		const requiresVersion = frontmatter.fields.requires
 		const isCompatible = _checkVersionCompatibility(requiresVersion, currentVersion)
 		if (!isCompatible) {
+			if (force) {
+				// Skip version check when force is enabled, but indicate it was skipped
+				return { valid: true, skippedVersionCheck: true }
+			}
 			return {
 				valid: false,
 				error: `Incompatible OpenCode version: requires ${requiresVersion}, but current version is ${currentVersion}`,

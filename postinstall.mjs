@@ -29,6 +29,7 @@ const flags = parseCliFlags(process.argv)
 const DRY_RUN = flags.dryRun
 const VERBOSE = flags.verbose
 const QUIET = flags.quiet
+const FORCE = flags.force
 
 /** Print usage information and exit */
 if (flags.help) {
@@ -92,6 +93,12 @@ async function main() {
 	verbose(`Source directory: ${AGENTS_SOURCE_DIR}`)
 	verbose(`Target directory: ${AGENTS_TARGET_DIR}`)
 	verbose(`Dry run: ${DRY_RUN}`)
+	verbose(`Force: ${FORCE}`)
+
+	// Warn about force mode
+	if (FORCE) {
+		verbose(`Force mode enabled: version compatibility checks will be skipped`)
+	}
 
 	// Create target directory if it doesn't exist
 	if (!existsSync(AGENTS_TARGET_DIR)) {
@@ -150,9 +157,12 @@ async function main() {
 			if (DRY_RUN) {
 				// In dry-run mode, validate source file but don't copy
 				verbose(`  Validating source file (dry-run mode)...`)
-				const validation = validateAgentFile(sourcePath)
+				const validation = validateAgentFile(sourcePath, undefined, FORCE)
 				if (!validation.valid) {
 					throw new Error(`Invalid agent file content: ${validation.error}`)
+				}
+				if (validation.skippedVersionCheck) {
+					verbose(`  Warning: Version compatibility check skipped (--force)`)
 				}
 				verbose(`  Validation passed`)
 				successes.push(file)
@@ -176,9 +186,12 @@ async function main() {
 
 				// Validate content structure
 				verbose(`  Validating content structure...`)
-				const validation = validateAgentFile(targetPath)
+				const validation = validateAgentFile(targetPath, undefined, FORCE)
 				if (!validation.valid) {
 					throw new Error(`Invalid agent file content: ${validation.error}`)
+				}
+				if (validation.skippedVersionCheck) {
+					verbose(`  Warning: Version compatibility check skipped (--force)`)
 				}
 				verbose(`  Validation passed`)
 

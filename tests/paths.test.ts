@@ -3019,5 +3019,119 @@ This is a test agent that handles various tasks.
 				}
 			})
 		})
+
+		describe("force parameter", () => {
+			it("should skip version compatibility check when force is true", () => {
+				const { writeFileSync, unlinkSync, existsSync: fsExistsSync } = require("node:fs")
+				const tempPath = join(import.meta.dirname, "temp-force-version.md")
+				try {
+					const content = `---
+version: 1.0
+requires: ">=99.0.0"
+---
+# Test Agent
+
+This is a test agent that handles various tasks.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+					writeFileSync(tempPath, content)
+
+					// Without force, this should fail
+					const resultWithoutForce = validateAgentFile(tempPath, "1.0.0", false)
+					expect(resultWithoutForce.valid).toBe(false)
+					expect(resultWithoutForce.error).toContain("Incompatible OpenCode version")
+
+					// With force, this should succeed and indicate version check was skipped
+					const resultWithForce = validateAgentFile(tempPath, "1.0.0", true)
+					expect(resultWithForce.valid).toBe(true)
+					expect(resultWithForce.skippedVersionCheck).toBe(true)
+				} finally {
+					if (fsExistsSync(tempPath)) {
+						unlinkSync(tempPath)
+					}
+				}
+			})
+
+			it("should not set skippedVersionCheck when version is compatible", () => {
+				const { writeFileSync, unlinkSync, existsSync: fsExistsSync } = require("node:fs")
+				const tempPath = join(import.meta.dirname, "temp-force-compatible.md")
+				try {
+					const content = `---
+version: 1.0
+requires: ">=1.0.0"
+---
+# Test Agent
+
+This is a test agent that handles various tasks.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+					writeFileSync(tempPath, content)
+
+					// Version is compatible, so skippedVersionCheck should not be set
+					const result = validateAgentFile(tempPath, "1.0.0", true)
+					expect(result.valid).toBe(true)
+					expect(result.skippedVersionCheck).toBeUndefined()
+				} finally {
+					if (fsExistsSync(tempPath)) {
+						unlinkSync(tempPath)
+					}
+				}
+			})
+
+			it("should still validate content structure when force is true", () => {
+				const { writeFileSync, unlinkSync, existsSync: fsExistsSync } = require("node:fs")
+				const tempPath = join(import.meta.dirname, "temp-force-invalid-content.md")
+				try {
+					// Content without frontmatter should still fail even with force
+					writeFileSync(
+						tempPath,
+						"# No Frontmatter\n\nThis agent has no frontmatter but mentions agent and task.".padEnd(
+							MIN_CONTENT_LENGTH + 10,
+							" ",
+						),
+					)
+					const result = validateAgentFile(tempPath, "1.0.0", true)
+					expect(result.valid).toBe(false)
+					expect(result.error).toContain("frontmatter")
+				} finally {
+					if (fsExistsSync(tempPath)) {
+						unlinkSync(tempPath)
+					}
+				}
+			})
+
+			it("should default force to false when not provided", () => {
+				const { writeFileSync, unlinkSync, existsSync: fsExistsSync } = require("node:fs")
+				const tempPath = join(import.meta.dirname, "temp-force-default.md")
+				try {
+					const content = `---
+version: 1.0
+requires: ">=99.0.0"
+---
+# Test Agent
+
+This is a test agent that handles various tasks.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+					writeFileSync(tempPath, content)
+
+					// Without explicit force parameter, should fail on incompatible version
+					const result = validateAgentFile(tempPath, "1.0.0")
+					expect(result.valid).toBe(false)
+					expect(result.error).toContain("Incompatible OpenCode version")
+				} finally {
+					if (fsExistsSync(tempPath)) {
+						unlinkSync(tempPath)
+					}
+				}
+			})
+
+			it("should work with actual agent files when force is true", () => {
+				const agentsDir = join(import.meta.dirname, "..", "agents")
+				for (const name of AGENT_NAMES) {
+					const filePath = join(agentsDir, `${name}.md`)
+					const result = validateAgentFile(filePath, "0.0.1", true)
+					// With force=true, even incompatible versions should pass
+					expect(result.valid).toBe(true)
+				}
+			})
+		})
 	})
 })
