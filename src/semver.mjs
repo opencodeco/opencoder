@@ -6,10 +6,18 @@
  */
 
 /**
+ * A parsed semantic version with numeric components.
+ * @typedef {Object} ParsedVersion
+ * @property {number} major - The major version number (breaking changes)
+ * @property {number} minor - The minor version number (new features, backwards compatible)
+ * @property {number} patch - The patch version number (bug fixes, backwards compatible)
+ */
+
+/**
  * Parses a semver version string into its numeric components.
  *
  * @param {string} version - The version string (e.g., "1.2.3")
- * @returns {{ major: number, minor: number, patch: number } | null} Parsed version or null if invalid
+ * @returns {ParsedVersion | null} Parsed version or null if invalid
  * @throws {TypeError} If version is not a string
  */
 export function parseVersion(version) {
@@ -56,8 +64,8 @@ function validateParsedVersion(value, paramName) {
 /**
  * Compares two parsed version objects.
  *
- * @param {{ major: number, minor: number, patch: number }} a - First version
- * @param {{ major: number, minor: number, patch: number }} b - Second version
+ * @param {ParsedVersion} a - First version
+ * @param {ParsedVersion} b - Second version
  * @returns {number} -1 if a < b, 0 if a == b, 1 if a > b
  * @throws {TypeError} If a or b is not a valid ParsedVersion object
  */
