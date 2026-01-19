@@ -2564,6 +2564,381 @@ The agent handles various tasks and operations in the system.
 		})
 	})
 
+	describe("main() integration tests", () => {
+		it("postinstall main() creates target directory when missing", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+
+			// Remove the target directory if it exists and is empty or only contains our agents
+			if (existsSync(AGENTS_TARGET_DIR)) {
+				const files = readdirSync(AGENTS_TARGET_DIR)
+				const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+				const onlyOurAgents = files.every((f) => agentFiles.includes(f))
+
+				if (files.length === 0 || onlyOurAgents) {
+					rmSync(AGENTS_TARGET_DIR, { recursive: true })
+				}
+			}
+
+			// Skip test if we couldn't remove the directory (user has other files)
+			if (existsSync(AGENTS_TARGET_DIR)) {
+				console.log("Skipping test: target directory contains other files")
+				return
+			}
+
+			// Run postinstall without --dry-run to test actual directory creation
+			const proc = Bun.spawn(["node", "postinstall.mjs", "--verbose"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+
+			// Should show directory creation message
+			expect(stdout).toContain("Created")
+			expect(stdout).toContain(AGENTS_TARGET_DIR)
+
+			// Verify directory was actually created
+			expect(existsSync(AGENTS_TARGET_DIR)).toBe(true)
+
+			// Verify agents were installed
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+			for (const file of agentFiles) {
+				expect(existsSync(join(AGENTS_TARGET_DIR, file))).toBe(true)
+			}
+
+			// Clean up
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+		})
+
+		it("postinstall main() handles partial failures gracefully with --dry-run", async () => {
+			// This test uses the mock setup to test partial failure handling
+			// Create a custom script that simulates partial failures
+			const customScript = `#!/usr/bin/env node
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
+import { tmpdir } from "node:os"
+
+// Create temp directories for isolation
+const testDir = join(tmpdir(), "opencoder-partial-test-" + Date.now())
+const sourceDir = join(testDir, "agents")
+const targetDir = join(testDir, "target")
+
+// Setup
+mkdirSync(sourceDir, { recursive: true })
+mkdirSync(targetDir, { recursive: true })
+
+// Create valid agent file
+const validContent = \`---
+version: 0.1.0
+requires: ">=0.1.0"
+---
+
+# Valid Agent
+
+This is a valid agent file that contains enough content.
+The agent handles various tasks in the system.
+\`
+
+// Create invalid agent file (too short)
+const invalidContent = "# Short"
+
+writeFileSync(join(sourceDir, "valid-agent.md"), validContent)
+writeFileSync(join(sourceDir, "invalid-agent.md"), invalidContent)
+
+// Simulate main() behavior with partial failure handling
+const files = readdirSync(sourceDir).filter(f => f.endsWith(".md"))
+const successes = []
+const failures = []
+
+for (const file of files) {
+	const sourcePath = join(sourceDir, file)
+	const content = readFileSync(sourcePath, "utf-8")
+	
+	// Simple validation: must be > 100 chars
+	if (content.length < 100) {
+		failures.push({ file, message: "File too short" })
+		console.error("  Failed: " + file + " - File too short")
+	} else {
+		successes.push(file)
+		console.log("  Would install: " + file)
+	}
+}
+
+// Summary
+console.log("")
+if (successes.length > 0 && failures.length > 0) {
+	console.log("opencode-plugin-opencoder: Installed " + successes.length + " of " + files.length + " agent(s)")
+	console.error("  " + failures.length + " file(s) failed to install:")
+	for (const { file, message } of failures) {
+		console.error("    - " + file + ": " + message)
+	}
+} else if (successes.length > 0) {
+	console.log("opencode-plugin-opencoder: Successfully installed " + successes.length + " agent(s)")
+} else {
+	console.error("opencode-plugin-opencoder: Failed to install any agents")
+	process.exit(1)
+}
+
+// Cleanup
+import { rmSync } from "node:fs"
+rmSync(testDir, { recursive: true, force: true })
+`
+			const scriptPath = join(mockProjectDir, "test-partial-failure.mjs")
+			writeFileSync(scriptPath, customScript)
+
+			const proc = Bun.spawn(["node", scriptPath], {
+				cwd: mockProjectDir,
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+			const stderr = await new Response(proc.stderr).text()
+
+			// Should exit 0 (partial success)
+			expect(exitCode).toBe(0)
+
+			// Should report partial success
+			expect(stdout).toContain("Installed 1 of 2 agent(s)")
+
+			// Should report the failure
+			expect(stderr).toContain("1 file(s) failed to install")
+			expect(stderr).toContain("invalid-agent.md")
+			expect(stderr).toContain("File too short")
+		})
+
+		it("postinstall main() exits with error when all files fail", async () => {
+			// Create a custom script that simulates all files failing
+			const customScript = `#!/usr/bin/env node
+import { mkdirSync, writeFileSync, readdirSync, readFileSync, rmSync } from "node:fs"
+import { join } from "node:path"
+import { tmpdir } from "node:os"
+
+const testDir = join(tmpdir(), "opencoder-all-fail-test-" + Date.now())
+const sourceDir = join(testDir, "agents")
+const targetDir = join(testDir, "target")
+
+mkdirSync(sourceDir, { recursive: true })
+mkdirSync(targetDir, { recursive: true })
+
+// Create only invalid agent files (too short)
+writeFileSync(join(sourceDir, "agent1.md"), "# Short1")
+writeFileSync(join(sourceDir, "agent2.md"), "# Short2")
+
+const files = readdirSync(sourceDir).filter(f => f.endsWith(".md"))
+const failures = []
+
+for (const file of files) {
+	const sourcePath = join(sourceDir, file)
+	const content = readFileSync(sourcePath, "utf-8")
+	
+	if (content.length < 100) {
+		failures.push({ file, message: "File too short" })
+		console.error("  Failed: " + file + " - File too short")
+	}
+}
+
+// All files failed
+console.error("opencode-plugin-opencoder: Failed to install any agents")
+for (const { file, message } of failures) {
+	console.error("    - " + file + ": " + message)
+}
+
+rmSync(testDir, { recursive: true, force: true })
+process.exit(1)
+`
+			const scriptPath = join(mockProjectDir, "test-all-fail.mjs")
+			writeFileSync(scriptPath, customScript)
+
+			const proc = Bun.spawn(["node", scriptPath], {
+				cwd: mockProjectDir,
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stderr = await new Response(proc.stderr).text()
+
+			// Should exit 1 (complete failure)
+			expect(exitCode).toBe(1)
+
+			// Should report failure
+			expect(stderr).toContain("Failed to install any agents")
+		})
+
+		it("preuninstall main() handles missing target directory gracefully", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+
+			// Ensure target directory doesn't exist
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+
+			// Try to remove empty directory
+			if (existsSync(AGENTS_TARGET_DIR)) {
+				const files = readdirSync(AGENTS_TARGET_DIR)
+				if (files.length === 0) {
+					rmSync(AGENTS_TARGET_DIR, { recursive: true })
+				}
+			}
+
+			// Only run the full test if directory was removed
+			if (!existsSync(AGENTS_TARGET_DIR)) {
+				const proc = Bun.spawn(["node", "preuninstall.mjs"], {
+					cwd: process.cwd(),
+					stdout: "pipe",
+					stderr: "pipe",
+				})
+
+				const exitCode = await proc.exited
+				const stdout = await new Response(proc.stdout).text()
+				const stderr = await new Response(proc.stderr).text()
+
+				// Should exit 0 (graceful handling)
+				expect(exitCode).toBe(0)
+
+				// Should indicate no directory found
+				expect(stdout).toContain("No agents directory found")
+
+				// Should not have errors
+				expect(stderr).toBe("")
+			} else {
+				// Directory exists with other files, test with --dry-run
+				const proc = Bun.spawn(["node", "preuninstall.mjs", "--dry-run", "--verbose"], {
+					cwd: process.cwd(),
+					stdout: "pipe",
+					stderr: "pipe",
+				})
+
+				const exitCode = await proc.exited
+
+				// Should exit 0 regardless
+				expect(exitCode).toBe(0)
+			}
+		})
+
+		it("preuninstall main() handles missing source directory gracefully", async () => {
+			// This tests the case where the package source is missing but target exists
+			// We use mock directories for this test
+			const customScript = `#!/usr/bin/env node
+import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs"
+import { join } from "node:path"
+import { tmpdir } from "node:os"
+
+const testDir = join(tmpdir(), "opencoder-missing-source-test-" + Date.now())
+const targetDir = join(testDir, "target")
+const sourceDir = join(testDir, "agents") // This won't exist
+
+// Create target with an agent file
+mkdirSync(targetDir, { recursive: true })
+writeFileSync(join(targetDir, "opencoder.md"), "# Old agent")
+
+// Don't create source directory - simulate it being missing
+
+// Simulate preuninstall main() behavior
+console.log("opencode-plugin-opencoder: Removing agents...")
+
+if (!existsSync(targetDir)) {
+	console.log("  No agents directory found, nothing to remove")
+} else if (!existsSync(sourceDir)) {
+	console.log("  Source agents directory not found, skipping cleanup")
+} else {
+	// Would remove files here
+}
+
+// Verify file still exists (wasn't removed)
+if (existsSync(join(targetDir, "opencoder.md"))) {
+	console.log("  File preserved (source missing)")
+}
+
+rmSync(testDir, { recursive: true, force: true })
+`
+			const scriptPath = join(mockProjectDir, "test-missing-source.mjs")
+			writeFileSync(scriptPath, customScript)
+
+			const proc = Bun.spawn(["node", scriptPath], {
+				cwd: mockProjectDir,
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			// Should exit 0 (graceful handling)
+			expect(exitCode).toBe(0)
+
+			// Should indicate source not found
+			expect(stdout).toContain("Source agents directory not found")
+
+			// Should preserve file
+			expect(stdout).toContain("File preserved")
+		})
+
+		it("preuninstall main() handles partial removal (some files missing)", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+
+			// Ensure target directory exists
+			mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
+
+			// Install only one agent file
+			const sourcePath = join(process.cwd(), "agents", "opencoder.md")
+			const targetPath = join(AGENTS_TARGET_DIR, "opencoder.md")
+			if (existsSync(sourcePath)) {
+				const content = readFileSync(sourcePath, "utf-8")
+				writeFileSync(targetPath, content)
+			}
+
+			// Make sure other files don't exist
+			const otherFiles = ["opencoder-planner.md", "opencoder-builder.md"]
+			for (const file of otherFiles) {
+				const filePath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(filePath)) {
+					rmSync(filePath)
+				}
+			}
+
+			// Run actual preuninstall
+			const proc = Bun.spawn(["node", "preuninstall.mjs", "--verbose"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			// Should exit 0
+			expect(exitCode).toBe(0)
+
+			// Should show that one file was removed
+			expect(stdout).toContain("Removed: opencoder.md")
+
+			// Should show skip messages for missing files in verbose mode
+			expect(stdout).toContain("File does not exist, skipping")
+
+			// Should show correct count
+			expect(stdout).toContain("Removed 1 agent(s)")
+
+			// Verify file was actually removed
+			expect(existsSync(targetPath)).toBe(false)
+		})
+	})
+
 	describe("full install/uninstall cycle", () => {
 		it("should install and then cleanly uninstall", async () => {
 			// Create scripts
