@@ -176,6 +176,180 @@ Done when: [Done when]
 
 The builder needs the description, files, and acceptance criteria to complete the task correctly.
 
+## Handling Builder Results
+
+The builder reports completion status in a structured format. Handle each case appropriately:
+
+### Status: `READY_FOR_NEXT_TASK`
+
+Builder successfully completed the task.
+
+```
+## Done: [Task Title]
+**Files:** path/to/file1.ts, path/to/file2.ts
+**Verified:** tests ✓, lint ✓, types ✓
+**Status:** READY_FOR_NEXT_TASK
+```
+
+**Action:**
+1. Commit the changes immediately
+2. Proceed to the next task in the plan
+
+### Status: `Blocked:`
+
+Builder could not complete the task due to a blocker.
+
+```
+## Blocked: [Task Title]
+**Reason:** Missing environment variable
+**Attempted:** Searched for config, checked docs
+**Suggestion:** Add API_KEY to environment
+**Status:** READY_FOR_NEXT_TASK
+```
+
+**Action:**
+1. Log the blocker reason for context
+2. Do NOT commit (no changes to commit)
+3. Skip to the next task
+4. If all tasks are blocked, pass blocker context to planner in next cycle
+
+### Status: Partial Completion
+
+Builder completed some work but not the full task.
+
+```
+## Done: [Task Title]
+**Files:** path/to/file1.ts
+**Verified:** tests ✓, lint ✓, types ✓
+**Status:** READY_FOR_NEXT_TASK
+**Note:** Only implemented validation for create endpoint; update endpoint requires schema changes
+```
+
+**Action:**
+1. Commit what was completed
+2. Note the incompleteness for planner context in next cycle
+3. Proceed to the next task
+
+### Status: Timeout or Unclear Response
+
+Builder times out or returns a response that doesn't clearly indicate success or failure.
+
+**Indicators:**
+- No `READY_FOR_NEXT_TASK` status line
+- Response is cut off or incomplete
+- Ambiguous language about completion
+
+**Action:**
+1. Treat as blocked
+2. Do NOT commit (state is uncertain)
+3. Log: "Task N timed out or returned unclear status"
+4. Skip to the next task
+5. Continue the loop
+
+### Decision Matrix
+
+| Builder Status | Commit? | Continue? | Notes |
+|----------------|---------|-----------|-------|
+| `READY_FOR_NEXT_TASK` (Done) | Yes | Yes | Normal flow |
+| `READY_FOR_NEXT_TASK` (Blocked) | No | Yes | Log blocker |
+| Partial completion | Yes | Yes | Note what's missing |
+| Timeout/No response | No | Yes | Treat as blocked |
+| Unclear response | No | Yes | Treat as blocked |
+
+## Loop Health Monitoring
+
+Detect and recover from stuck loops to maintain forward progress.
+
+### Signs of a Stuck Loop
+
+| Symptom | Detection | Indicates |
+|---------|-----------|-----------|
+| Same file modified 3+ times in one cycle | Track files touched per task | Thrashing on same issue |
+| Planner returns identical tasks | Compare task titles/descriptions to previous cycle | No progress being made |
+| Builder fails same task repeatedly | Same task title fails 2+ cycles in a row | Persistent blocker |
+| 3+ consecutive task failures | Count failures within a cycle | Systemic issue |
+| Same error message recurring | Track error strings | Root cause not addressed |
+
+### Tracking State
+
+Maintain minimal state across tasks within a cycle:
+
+```
+Cycle N State:
+- files_modified: ["src/api.ts", "src/api.ts", "src/api.ts"]  # Warning: 3x same file
+- failed_tasks: ["Add validation", "Fix types"]
+- blockers: ["Missing STRIPE_KEY", "TypeScript version conflict"]
+- consecutive_failures: 2
+```
+
+### Recovery Actions
+
+**When same file is modified 3+ times in one cycle:**
+1. Stop modifying that file for the rest of the cycle
+2. Pass to planner: "File X was modified 3+ times without resolving issues. Consider a different approach."
+
+**When planner returns identical tasks:**
+1. Include in planner prompt: "Previous cycle attempted these tasks: [list]. They did not resolve the issues. Suggest alternative approaches."
+2. Request the planner focus on root causes, not symptoms
+
+**When builder repeatedly fails the same task:**
+1. After 2 failures of the same task, skip it for 2 cycles
+2. Pass to planner: "Task '[title]' has failed multiple times with error: [error]. Suggest prerequisite tasks or alternative approach."
+
+**When 3+ tasks fail in a row:**
+1. Abort remaining tasks in current cycle
+2. Do NOT push (likely nothing meaningful to push)
+3. Create a fresh plan with explicit context:
+   ```
+   @opencoder-planner The previous cycle had multiple failures:
+   - Task 1 failed: [reason]
+   - Task 2 failed: [reason]
+   - Task 3 failed: [reason]
+   
+   Create a plan focused on unblocking these issues. Consider:
+   - Missing dependencies or configuration
+   - Prerequisite setup tasks
+   - Alternative approaches to the same goals
+   ```
+
+### Recovery Prompt Templates
+
+**For thrashing files:**
+```
+@opencoder-planner Note: src/api.ts was modified 3+ times last cycle without success.
+The changes attempted: [brief description].
+Create a plan that either fixes the root cause or takes a different approach.
+```
+
+**For persistent blockers:**
+```
+@opencoder-planner These blockers have persisted across cycles:
+- [blocker 1]
+- [blocker 2]
+Create a plan that addresses these blockers before attempting other improvements.
+```
+
+**For consecutive failures:**
+```
+@opencoder-planner Last cycle had 3+ consecutive failures. 
+Failed tasks and reasons:
+1. [task]: [reason]
+2. [task]: [reason]
+3. [task]: [reason]
+Create a smaller, more focused plan that unblocks forward progress.
+```
+
+### Health Heuristics
+
+| Metric | Healthy | Warning | Critical |
+|--------|---------|---------|----------|
+| Task success rate | >80% | 50-80% | <50% |
+| Same file modifications | 1-2x | 3x | 4+x |
+| Consecutive failures | 0-1 | 2 | 3+ |
+| Identical tasks across cycles | 0 | 1-2 | 3+ |
+
+**On Critical status:** Immediately switch to recovery mode with explicit blocker context to planner.
+
 ## Git Operations
 
 ### After Each Task Completes
